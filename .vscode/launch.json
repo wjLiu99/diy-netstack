@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/build/net",
             "args": [],
-            "stopAtEntry": true,
+            "stopAtEntry": false,
             "cwd": "${workspaceFolder}/work",
             "environment": [],
             "externalConsole": false,
