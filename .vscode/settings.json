@@ -55,7 +55,17 @@
         "netapi.h": "c",
         "sys_plat.h": "c",
         "stdio.h": "c",
-        "neterr.h": "c"
+        "neterr.h": "c",
+        "array": "c",
+        "deque": "c",
+        "forward_list": "c",
+        "list": "c",
+        "string": "c",
+        "unordered_map": "c",
+        "vector": "c",
+        "internet": "c",
+        "io_context": "c",
+        "string_view": "c"
     },
     
     "C_Cpp.default.configurationProvider": "ms-vscode.makefile-tools"
