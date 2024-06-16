@@ -22,4 +22,6 @@ void dbg_print(int m_level, int s_level, const char *file, const char *func, int
         while(1);\
     }\
 }
+
+#define DBG_DISPLAY_ENABLED(level) (level >= DBG_LEVEL_INFO)
 #endif

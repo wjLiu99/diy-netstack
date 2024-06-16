@@ -18,7 +18,7 @@ static void work_thread(void * arg){
     while(1){
         //阻塞等，工作线程就是一直取消息处理
         exmsg_t *msg = (exmsg_t *)fixmq_recv(&mq, 0);
-        plat_printf("recv a msg type: %d, id: %d\n",msg->type, msg->id);
+        // plat_printf("recv a msg type: %d, id: %d\n",msg->type, msg->id);
         mblock_free(&msg_mblock, msg);
         
     }

@@ -27,6 +27,7 @@ static inline nlist_node_t *nlist_node_pre (nlist_node_t *node){
 
 static inline void nlist_node_set_next (nlist_node_t *node, nlist_node_t *next){
     node->next = next;
+    next->pre = node;
 }
 
 void nlist_init (nlist_t *list);
@@ -71,7 +72,7 @@ static inline nlist_node_t *nlist_remove_last(nlist_t *list){
 #define ofsset_in_parent(parent_type, node_name)    ((char *)(&(((parent_type *)0)->node_name)))
 
 #define offset_to_parent(node, parent_type, node_name) \
-(parent_type *)((char *)p - ofsset_in_parent(parent_type, node_name))
+(parent_type *)((char *)(node) - ofsset_in_parent(parent_type, node_name))
 
 #define nlist_entry(node, parent_type, node_name)\
 ((node) ? offset_to_parent((node), parent_type, node_name) : (parent_type *)0)
