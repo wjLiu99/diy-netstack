@@ -5,6 +5,7 @@
 #include "dbg.h"
 #include "nlist.h"
 #include "mblock.h"
+#include "nlocker.h"
 
 net_err_t netdev_init(void){
 	netif_pcap_open();
@@ -38,8 +39,25 @@ void list_test(){
 
 }
 
+
+void mblock_test(){
+	mblock_t blist;
+	static uint8_t buf[100][10];
+	mblock_init(&blist, buf, 100, 10, NLOCKER_THREAD);
+	void *temp[10];
+	for(int i = 0;i < 10; i++){
+		temp[i] = mblock_alloc(&blist, 0);
+		plat_printf("block: %p, free count: %d\n", temp[i], mblock_free_cnt(&blist));
+	}
+
+	for (int i = 0; i < 10; i++){
+		mblock_free(&blist, temp[i]);
+		plat_printf("free count: %d\n",mblock_free_cnt(&blist));
+	}
+	mblock_destory(&blist);
+}
 void base_test(){
-	list_test();
+	mblock_test();
 }
 int main (void) {
 	base_test();

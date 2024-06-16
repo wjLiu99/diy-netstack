@@ -23,7 +23,7 @@ void nlocker_lock (nlocker_t *locker){
         sys_mutex_lock(locker->mutex);
     }
 }
-void nlocker_unlocker (nlocker_t *locker){
+void nlocker_unlock (nlocker_t *locker){
     if(locker->type == NLOCKER_THREAD){
         sys_mutex_unlock(locker->mutex);
     }

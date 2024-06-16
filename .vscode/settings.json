@@ -65,7 +65,8 @@
         "vector": "c",
         "internet": "c",
         "io_context": "c",
-        "string_view": "c"
+        "string_view": "c",
+        "mutex": "c"
     },
     
     "C_Cpp.default.configurationProvider": "ms-vscode.makefile-tools"

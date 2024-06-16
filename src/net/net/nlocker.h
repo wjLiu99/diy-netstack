@@ -24,5 +24,5 @@ typedef struct _nlocker_t{
 net_err_t nlocker_init (nlocker_t *locker, nlocker_type_t type);
 void nlocker_destory (nlocker_t *locker);
 void nlocker_lock (nlocker_t *locker);
-void nlocker_unlocker (nlocker_t *locker);
+void nlocker_unlock (nlocker_t *locker);
 #endif
