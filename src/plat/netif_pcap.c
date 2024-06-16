@@ -1,10 +1,13 @@
 #include "netif_pcap.h"
 #include "sys_plat.h"
+#include "exmsg.h"
 
 void recv_thread (void *arg){
     plat_printf("recv working...\n");
     while(1){
         sys_sleep(100);
+
+        exmsg_netif_in();
     }
 }
 

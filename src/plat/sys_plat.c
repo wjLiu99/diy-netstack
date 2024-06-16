@@ -1,8 +1,5 @@
 ﻿
 #include "sys_plat.h"
-
-
-
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <pthread.h>
