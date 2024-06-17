@@ -19,6 +19,7 @@ typedef struct _pktbuf_t{
     int total_size;
     nlist_t blk_list;
     nlist_node_t node;
+    int ref;
 
     //读写控制
     int pos;    
@@ -28,7 +29,7 @@ typedef struct _pktbuf_t{
 
 net_err_t pktbuf_init (void);
 
-pktbuf_t *pktbuf_alloc (int size);
+pktbuf_t * pktbuf_alloc (int size);
 
 void pktbuf_free (pktbuf_t *buf);
 
@@ -62,6 +63,9 @@ net_err_t pktbuf_copy (pktbuf_t *dest, pktbuf_t *src, int size);
 
 //填充数据包
 int pktbuf_fill (pktbuf_t *buf, uint8_t v, int size);
+
+//增加数据包引用计数
+void pktbuf_inc_ref (pktbuf_t *buf);
 
 
 

@@ -104,8 +104,8 @@ net_err_t pktbuf_init (void){
     dbg_info(DBG_PKTBUF, "pktbuf init");
 
     nlocker_init(&locker, NLOCKER_THREAD);
-    mblock_init(&block_list, block_buffer, sizeof(pktblk_t), PKTBUF_BLK_CNT, NLOCKER_THREAD);
-    mblock_init(&pktbuf_list, pktbuf_buffer, sizeof(pktbuf_t), PKTBUF_BUF_CNT, NLOCKER_THREAD);
+    mblock_init(&block_list, block_buffer, sizeof(pktblk_t), PKTBUF_BLK_CNT, NLOCKER_NONE);
+    mblock_init(&pktbuf_list, pktbuf_buffer, sizeof(pktbuf_t), PKTBUF_BUF_CNT, NLOCKER_NONE);
 
     dbg_info(DBG_PKTBUF, "pktbuf init done");
     return NET_ERR_OK;
@@ -113,8 +113,10 @@ net_err_t pktbuf_init (void){
 
 //数据块分配
 static pktblk_t *pktblock_alloc(void){
+    nlocker_lock(&locker);
     //pktbuf分配可能被中断程序调用，不应该等
     pktblk_t *block = mblock_alloc(&block_list, -1);
+    nlocker_unlock(&locker);
     if(block){
         block->size = 0;
         block->data = (uint8_t *)0;
@@ -131,6 +133,10 @@ static pktblk_t *pktblock_alloc_list(int size, int add_front){
         pktblk_t *new_block = pktblock_alloc();
         if(!new_block){
             dbg_error(DBG_PKTBUF, "no buf alloc");
+            if (!first_block) {
+                pktblock_free_list(first_block);
+            }
+           
             return (pktblk_t *)0;
         }
 
@@ -196,12 +202,14 @@ static void pktbuf_insert_blk_list(pktbuf_t *buf, pktblk_t *first_block, int add
 }
 //分配pktbuf
 pktbuf_t *pktbuf_alloc (int size){
+    nlocker_lock(&locker);
     pktbuf_t *buf = mblock_alloc(&pktbuf_list, -1);
+    nlocker_unlock(&locker);
     if (!buf) {
         dbg_error(DBG_PKTBUF, "no buffer");
         return (pktbuf_t *)0;
     }
-
+    buf->ref = 1;
     buf->total_size = 0;
     nlist_init(&buf->blk_list);
     nlist_node_init(&buf->node);
@@ -211,7 +219,9 @@ pktbuf_t *pktbuf_alloc (int size){
         //分配数据块链
         pktblk_t *block = pktblock_alloc_list(size, 1);
         if (!block) {
+            nlocker_lock(&locker);
             mblock_free(&pktbuf_list, buf);
+            nlocker_unlock(&locker);
             return (pktbuf_t *)0;
         }
         //将分配的数据块链整体插入pktbuf链表中
@@ -223,8 +233,12 @@ pktbuf_t *pktbuf_alloc (int size){
 }
 //释放pktbuf
 void pktbuf_free (pktbuf_t *buf){
-    pktblock_free_list(pktbuf_first_blk(buf));
-    mblock_free(&pktbuf_list, buf);
+    nlocker_lock(&locker);
+    if(--buf->ref == 0){
+        pktblock_free_list(pktbuf_first_blk(buf));
+        mblock_free(&pktbuf_list, buf);
+    }
+    nlocker_unlock(&locker);
 
 }
 
@@ -550,4 +564,10 @@ int pktbuf_fill (pktbuf_t *buf, uint8_t v, int size){
     }
     return NET_ERR_OK;
 
+}
+
+void pktbuf_inc_ref (pktbuf_t *buf){
+    nlocker_lock(&locker);
+    buf->ref++;
+    nlocker_unlock(&locker);
 }
