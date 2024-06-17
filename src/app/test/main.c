@@ -9,9 +9,31 @@
 #include "pktbuf.h"
 #include "netif.h"
 
+pcap_data_t netdev0_data = {.ip = netdev0_phy_ip, .hwaddr = netdev0_hwaddr};
+
 net_err_t netdev_init(void){
-	netif_pcap_open();
-	return NET_ERR_OK;
+	dbg_info(DBG_NETIF, "netdev init ...");
+	
+
+    netif_t *netif = netif_open("netif0", &netdev_ops, &netdev0_data);
+    if (!netif) {
+        dbg_error(DBG_NETIF, "netif0 open err");
+        return NET_ERR_NONE;
+    }
+
+    ipaddr_t ip, netmask, gateway;
+    ipaddr_from_str(&ip, netdev0_ip);
+    ipaddr_from_str(&netmask, netdev0_mask);
+	ipaddr_from_str(&gateway, netdev0_gw);
+
+    netif_set_addr(netif, &ip, &netmask, &gateway);
+
+    netif_set_active(netif);
+
+    // pktbuf_t *buf = pktbuf_alloc(100);
+    // netif_out(netif, (ipaddr_t *)0, buf);
+    dbg_info(DBG_NETIF, "netif0 init done");
+    return NET_ERR_OK;
 
 }
 #define DBG_TEST DBG_LEVEL_INFO
@@ -158,7 +180,7 @@ void pktbuf_test(){
 	
 }
 void netif_test(){
-	// netif_t *netif = netif_open("netif1");
+	
 }
 void base_test(){
 	netif_test();
@@ -167,8 +189,9 @@ int main (void) {
 	
 	net_init();
 	base_test();
-	net_start();
 	netdev_init();
+	net_start();
+	
 	
 
 	dbg_info(DBG_TEST, "info");

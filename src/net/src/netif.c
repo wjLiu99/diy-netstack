@@ -105,7 +105,10 @@ netif_t *netif_open(const char *dev_name, const netif_ops_t *ops, void *ops_data
         mblock_free(&netif_mblock, netif);
         return (netif_t *)0;
     }
-    //针对特定网卡进行打开设置
+    //驱动应该在内部可以改写ops_data
+    netif->ops = ops;
+    netif->ops_data = ops_data;
+    //针对特定网卡驱动进行打开设置
     err = ops->open(netif, ops_data);
     if (err < 0) {
         dbg_error(DBG_NETIF, "netif hwopen err");
@@ -119,8 +122,7 @@ netif_t *netif_open(const char *dev_name, const netif_ops_t *ops, void *ops_data
     }
 
 
-    netif->ops = ops;
-    netif->ops_data = ops_data;
+ 
     
     //初始化完成，加入网卡队列
     nlist_insert_last(&netif_list, &netif->node);
