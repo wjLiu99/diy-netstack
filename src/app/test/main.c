@@ -7,6 +7,7 @@
 #include "mblock.h"
 #include "nlocker.h"
 #include "pktbuf.h"
+#include "netif.h"
 
 net_err_t netdev_init(void){
 	netif_pcap_open();
@@ -156,8 +157,11 @@ void pktbuf_test(){
 
 	
 }
+void netif_test(){
+	netif_t *netif = netif_open("netif1");
+}
 void base_test(){
-	pktbuf_test();
+	netif_test();
 }
 int main (void) {
 	
