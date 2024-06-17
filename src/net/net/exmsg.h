@@ -4,6 +4,7 @@
 
 #include"net_err.h"
 #include "nlist.h"
+#include "netif.h"
 
 //通用消息结构
 typedef struct _exmsg_t{
@@ -19,6 +20,6 @@ net_err_t exmsg_init(void);
 net_err_t exmsg_start(void);
 
 //网卡有数据到达，发送数据到消息队列
-net_err_t exmsg_netif_in(void);
+net_err_t exmsg_netif_in(netif_t *netif);
 
 #endif

@@ -5,6 +5,7 @@
 #include "dbg.h"
 #include "net_cfg.h"
 #include "netif.h"
+#include "loop.h"
 
 
 net_err_t net_init(void){
@@ -13,6 +14,8 @@ net_err_t net_init(void){
     exmsg_init();
     pktbuf_init();
     netif_init();
+    loop_init();
+
     dbg_info(DBG_INIT, "net stack init done ...");
     return NET_ERR_OK;
 }

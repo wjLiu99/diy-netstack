@@ -158,7 +158,7 @@ void pktbuf_test(){
 	
 }
 void netif_test(){
-	netif_t *netif = netif_open("netif1");
+	// netif_t *netif = netif_open("netif1");
 }
 void base_test(){
 	netif_test();

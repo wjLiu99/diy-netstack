@@ -50,7 +50,7 @@ net_err_t exmsg_start(void){
     return NET_ERR_OK;
 }
 static int id = 0;
-net_err_t exmsg_netif_in(void){
+net_err_t exmsg_netif_in(netif_t *netif){
     //没有内存块不应该等，之后用中断处理程序调用该函数不应该阻塞，造成数据包的丢失也是正常现象，网络本来就不稳定
     exmsg_t *msg = mblock_alloc(&msg_mblock, -1);
     if(!msg){
