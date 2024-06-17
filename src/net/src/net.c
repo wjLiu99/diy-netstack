@@ -6,15 +6,19 @@
 #include "net_cfg.h"
 #include "netif.h"
 #include "loop.h"
+#include "ether.h"
+#include "ntools.h"
 
 
 net_err_t net_init(void){
     dbg_info(DBG_INIT, "net stack init ...");
     net_plat_init();
     exmsg_init();
+    tools_init();
     pktbuf_init();
     netif_init();
     loop_init();
+    ether_init();
 
     dbg_info(DBG_INIT, "net stack init done ...");
     return NET_ERR_OK;

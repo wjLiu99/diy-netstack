@@ -2,14 +2,14 @@
 #include "mblock.h"
 #include "pktbuf.h"
 #include "exmsg.h"
-
+#include "protocol.h"
 
 static netif_t netif_buffer[NETIF_DEV_CNT];
 static mblock_t netif_mblock;
 static nlist_t netif_list; //分配之后的网络接口链表
 static netif_t *netif_default;
 
-
+static const link_layer_t *link_layer[NETIF_TYPE_SIZE];
 
 #if DBG_DISPLAY_ENABLED(DBG_NETIF)
 void display_netif_list (void) {
@@ -65,9 +65,34 @@ net_err_t netif_init (void) {
     mblock_init(&netif_mblock, netif_buffer, sizeof(netif_t), NETIF_DEV_CNT, NLOCKER_NONE); //只有工作线程访问这块代码
 
     netif_default = (netif_t *)0;
+    plat_memset((void *)link_layer, 0, sizeof(link_layer));
 
     dbg_info(DBG_NETIF, "netif init done ...");
     return NET_ERR_OK;
+}
+
+net_err_t netif_register_layer (int type, const link_layer_t *layer){
+    if ((type < 0) || (type >= NETIF_TYPE_SIZE)){
+        dbg_error(DBG_NETIF, "type err");
+        return NET_ERR_PARAM;
+    }
+
+    if (link_layer[type]) {
+        dbg_error(DBG_NETIF, "layer type exist");
+        return NET_ERR_EXIST;
+    }
+    link_layer[type] = layer;
+    return NET_ERR_OK;
+
+}
+
+static const link_layer_t *netif_get_layer (int type) {
+      if ((type < 0) || (type >= NETIF_TYPE_SIZE)){
+        dbg_error(DBG_NETIF, "type err");
+        return (const link_layer_t *)0;
+    }
+
+    return link_layer[type];
 }
 
 netif_t *netif_open(const char *dev_name, const netif_ops_t *ops, void *ops_data){
@@ -122,7 +147,11 @@ netif_t *netif_open(const char *dev_name, const netif_ops_t *ops, void *ops_data
     }
 
 
- 
+    netif->linker_layer = netif_get_layer(netif->type);
+    if (!netif->linker_layer && (netif->type != NETIF_TYPE_LOOP)) {
+        dbg_error(DBG_NETIF, "no link layer");
+        goto free_src;
+    }
     
     //初始化完成，加入网卡队列
     nlist_insert_last(&netif_list, &netif->node);
@@ -161,6 +190,15 @@ net_err_t netif_set_active (netif_t *netif) {
         dbg_error(DBG_NETIF, "netif not opened");
         return NET_ERR_STATE;
     }
+
+    if (netif->linker_layer) {
+        net_err_t err = netif->linker_layer->open(netif);
+        if (err < 0) {
+            dbg_error(DBG_NETIF, "link layer open failed");
+            return err;
+        }
+    }
+
     netif->state = NETIF_ACTIVE;
 
     if (!netif_default && (netif->type != NETIF_TYPE_LOOP)) {
@@ -181,6 +219,10 @@ net_err_t netif_set_deactive (netif_t *netif){
     }
         while ((buf = fixmq_recv(&netif->out_mq, -1)) != (pktbuf_t *)0) {
         pktbuf_free(buf);
+    }
+
+    if(netif->linker_layer) {
+        netif->linker_layer->close(netif);
     }
 
     if (netif == netif_default) {
@@ -253,11 +295,18 @@ pktbuf_t *netif_get_out (netif_t *netif, int tmo){
 
 
 net_err_t netif_out (netif_t *netif, ipaddr_t *ipaddr, pktbuf_t *buf) {
-    net_err_t err = netif_put_out (netif, buf, -1);
-    if (err < 0) {
-        dbg_info(DBG_NETIF, "send failed, queue full");
-        return NET_ERR_FULL;
-    }
+    if (netif->linker_layer) {
+        ether_raw_out(netif, NET_PROTOCOL_ARP, ether_broadcast_addr(), buf);
+    } else {
+        net_err_t err = netif_put_out (netif, buf, -1);
+      if (err < 0) {
+            dbg_info(DBG_NETIF, "send failed, queue full");
+            return NET_ERR_FULL;
+        }
 
     return netif->ops->xmit(netif);
+
+    }
+    
 }
+

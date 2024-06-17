@@ -8,6 +8,7 @@
 #include "nlocker.h"
 #include "pktbuf.h"
 #include "netif.h"
+#include "ntools.h"
 
 pcap_data_t netdev0_data = {.ip = netdev0_phy_ip, .hwaddr = netdev0_hwaddr};
 
@@ -30,8 +31,9 @@ net_err_t netdev_init(void){
 
     netif_set_active(netif);
 
-    // pktbuf_t *buf = pktbuf_alloc(100);
-    // netif_out(netif, (ipaddr_t *)0, buf);
+    pktbuf_t *buf = pktbuf_alloc(32);
+	pktbuf_fill(buf, 0x53, 32);
+    netif_out(netif, (ipaddr_t *)0, buf);
     dbg_info(DBG_NETIF, "netif0 init done");
     return NET_ERR_OK;
 
@@ -183,7 +185,7 @@ void netif_test(){
 	
 }
 void base_test(){
-	netif_test();
+
 }
 int main (void) {
 	

@@ -30,6 +30,15 @@ typedef struct _netif_ops_t {
     net_err_t (*xmit) (struct _netif_t *netif);
 }netif_ops_t;
 
+//链路层回调函数,给上层ip层使用，只需要传入ip地址
+typedef struct _link_layer_t {
+    netif_type_t type;
+
+    net_err_t (*open) (struct _netif_t *netif);
+    void (*close) (struct _netif_t *netif);
+    net_err_t (*in) (struct _netif_t *netif, pktbuf_t *buf);
+    net_err_t (*out) (struct _netif_t *netif, ipaddr_t *dest, pktbuf_t *buf);
+} link_layer_t;
 //网络接口结构体
 typedef struct _netif_t{
     char name[NETIF_NAME_SIZE];
@@ -57,6 +66,7 @@ typedef struct _netif_t{
     } state;
 
     const netif_ops_t *ops;
+    const link_layer_t *linker_layer;
     void *ops_data;
 
 } netif_t;
@@ -90,4 +100,7 @@ pktbuf_t *netif_get_out (netif_t *netif, int tmo);
 
 //发送数据
 net_err_t netif_out (netif_t *netif, ipaddr_t *ipaddr, pktbuf_t *buf);
+
+//注册链路层接口
+net_err_t netif_register_layer (int type, const link_layer_t *layer);
 #endif

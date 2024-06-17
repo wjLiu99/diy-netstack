@@ -19,9 +19,14 @@ static net_err_t do_netif_in (exmsg_t *msg) {
     //一次性取出所有数据包
     while ((buf = netif_get_in(netif, -1))){
         dbg_info(DBG_EXMSG, "recv a packet");
-        pktbuf_fill(buf, 0x11, 6);
-        net_err_t err = netif_out(netif, (ipaddr_t *)0, buf);
-        if (err < 0) {
+
+        if (netif->linker_layer) {
+            net_err_t err = netif->linker_layer->in(netif, buf);
+            if (err < 0) {
+                pktbuf_free(buf);
+                dbg_warning(DBG_EXMSG, "netif in failed, err = %d",err);
+            }
+        } else {
             pktbuf_free(buf);
         }
 
@@ -94,5 +99,5 @@ net_err_t exmsg_netif_in(netif_t *netif){
         return err;
     }
 
-    return err;
+    return NET_ERR_OK;
 }
