@@ -26,7 +26,7 @@ net_err_t ether_init (void);
 //获取广播地址
 const uint8_t *ether_broadcast_addr(void);
 
-//发送数据
+//发送数据,添加以太网包头
 net_err_t ether_raw_out (netif_t *netif, uint16_t protocol, const uint8_t *dest, pktbuf_t *buf);
 
 

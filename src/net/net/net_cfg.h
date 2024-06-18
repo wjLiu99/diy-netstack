@@ -37,4 +37,7 @@
 
 #define ARP_CACHE_SIZE 10
 #define ETH_HWA_SIZE 6
+
+
+#define ARP_MAX_PKT_WAIT 10
 #endif

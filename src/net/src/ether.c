@@ -85,9 +85,10 @@ net_err_t ether_out (struct _netif_t *netif, ipaddr_t *dest, pktbuf_t *buf){
     if (ipaddr_is_equal(&netif->ipaddr, dest)){
         return ether_raw_out(netif, NET_PROTOCOL_IPv4, netif->hwaddr.addr, buf);
     }
+    
+    //查arp缓存表，内部会解决发送
+    return arp_resolve(netif, dest, buf);
 
-    arp_make_request(netif, dest);
-    return NET_ERR_OK;
 }
 
 static const link_layer_t ether_link_layer = {

@@ -53,4 +53,8 @@ net_err_t arp_make_request (netif_t *netif, const ipaddr_t *dest);
 net_err_t arp_make_gratuitous (netif_t *netif);
 
 net_err_t arp_in (netif_t *netif, pktbuf_t *buf);
+
+//arp解析,传入对方ip地址，查询arp缓存，查到硬件地址则启动发送，没有查到就发送arp请求
+net_err_t arp_resolve (netif_t *netif, const ipaddr_t *ipaddr, pktbuf_t *buf);
+
 #endif
