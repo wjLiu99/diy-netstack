@@ -9,6 +9,7 @@
 #include "pktbuf.h"
 #include "netif.h"
 #include "ntools.h"
+#include "ntimer.h"
 
 pcap_data_t netdev0_data = {.ip = netdev0_phy_ip, .hwaddr = netdev0_hwaddr};
 
@@ -184,8 +185,37 @@ void pktbuf_test(){
 void netif_test(){
 	
 }
-void base_test(){
+void timer0_proc (struct _net_timer_t *timer, void *arg) {
+	static int count = 1;
+	printf("this is %s: %d\n", timer->name, count);
+}
+void timer1_proc (struct _net_timer_t *timer, void *arg) {
+	static int count = 1;
+	printf("this is %s: %d\n", timer->name, count++);
+}
+void timer2_proc (struct _net_timer_t *timer, void *arg) {
+	static int count = 1;
+	printf("this is %s: %d\n", timer->name, count++);
+}
+void timer3_proc (struct _net_timer_t *timer, void *arg) {
+	static int count = 1;
+	printf("this is %s: %d\n", timer->name, count++);
+}
 
+void timer_test(){
+	static net_timer_t t0, t1, t2, t3;
+	net_timer_add(&t0, "t0", timer0_proc, (void *)0, 200, 0);
+	net_timer_add(&t3, "t3", timer3_proc, (void *)0, 4000, NET_TIMER_RELOAD);
+	net_timer_add(&t1, "t1", timer1_proc, (void *)0, 1000, NET_TIMER_RELOAD);
+	net_timer_add(&t2, "t2", timer2_proc, (void *)0, 1000, NET_TIMER_RELOAD);
+
+	net_timer_remove(&t0);
+
+
+
+}
+void base_test(){
+	timer_test();
 }
 int main (void) {
 	

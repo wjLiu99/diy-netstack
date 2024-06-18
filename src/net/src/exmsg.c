@@ -3,7 +3,7 @@
 #include "fixmq.h"
 #include "dbg.h"
 #include "mblock.h"
-
+#include "ntimer.h"
 
 
 static void *msg_tbl[EXMSG_MSG_CNT];
@@ -37,21 +37,35 @@ static net_err_t do_netif_in (exmsg_t *msg) {
 
 static void work_thread(void * arg){
     dbg_info(DBG_EXMSG,"exmsg working....\n");
+    net_time_t time;
+    sys_time_curr(&time);
     while(1){
+        //定时器列表第一个超时时间
+        int ms = net_timer_first_tmo();
         //阻塞等，工作线程就是一直取消息处理
-        exmsg_t *msg = (exmsg_t *)fixmq_recv(&mq, 0);
-        dbg_info(DBG_EXMSG, "recv a msg %p: %d\n", msg, msg->type);
+        exmsg_t *msg = (exmsg_t *)fixmq_recv(&mq, ms);
+
+        if (msg) {
+
+            dbg_info(DBG_EXMSG, "recv a msg %p: %d\n", msg, msg->type);
         
-        switch (msg->type)
-        {
-        case NET_EXMSG_NETIF_IN:
-            do_netif_in(msg);
-            break;
+            switch (msg->type)
+            {
+            case NET_EXMSG_NETIF_IN:
+                do_netif_in(msg);
+                break;
+            
+            default:
+                break;
+            }
+            mblock_free(&msg_mblock, msg);
+
+        } 
+        int diff_ms = sys_time_goes(&time);
+
+        net_timer_check_tmo(diff_ms);
         
-        default:
-            break;
-        }
-        mblock_free(&msg_mblock, msg);
+  
         
     }
 }

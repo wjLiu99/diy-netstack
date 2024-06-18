@@ -8,6 +8,7 @@
 #include "loop.h"
 #include "ether.h"
 #include "ntools.h"
+#include "ntimer.h"
 
 
 net_err_t net_init(void){
@@ -16,6 +17,7 @@ net_err_t net_init(void){
     exmsg_init();
     tools_init();
     pktbuf_init();
+    net_timer_init();
     netif_init();
     loop_init();
     ether_init();
