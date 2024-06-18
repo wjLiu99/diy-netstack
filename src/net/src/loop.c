@@ -11,7 +11,7 @@ static void loop_close (struct _netif_t *netif){
 }
 
 static net_err_t loop_xmit (struct _netif_t *netif){
-
+    //环回接口直接写入输入队列
     pktbuf_t *buf = netif_get_out(netif, -1);
     if (buf) {
         net_err_t err = netif_put_in(netif, buf, -1);

@@ -5,7 +5,7 @@
 #include "ntools.h"
 
 #if DBG_DISPLAY_ENABLED(DBG_ETHER)
-static void display_ether_display(char * title, ether_pkt_t * pkt, int size) {
+static void display_ether_pkt(char * title, ether_pkt_t * pkt, int size) {
     ether_hdr_t * hdr = (ether_hdr_t *)pkt;
 
     plat_printf("\n--------------- %s ------------------ \n", title);
@@ -28,7 +28,7 @@ static void display_ether_display(char * title, ether_pkt_t * pkt, int size) {
 }
 
 #else
-#define display_ether_display(title, pkt, size)
+#define display_ether_pkt(title, pkt, size)
 #endif
 
 
@@ -58,7 +58,7 @@ net_err_t ether_in (struct _netif_t *netif , pktbuf_t *buf){
         dbg_warning(DBG_ETHER, "ether pkt err");
         return err;
     }
-    display_ether_display("ether in", pkt, buf->total_size);
+    display_ether_pkt("ether in", pkt, buf->total_size);
     pktbuf_free(buf);
     return NET_ERR_OK;
 }
@@ -90,6 +90,48 @@ const uint8_t *ether_broadcast_addr(void) {
     static const uint8_t broadcast[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
     return broadcast;
 }
+
 net_err_t ether_raw_out (netif_t *netif, uint16_t protocol, const uint8_t *dest, pktbuf_t *buf) {
-    
+    int size = pktbuf_total(buf);
+    net_err_t err = 0;
+    if (size < ETHER_DATA_MIN) {
+        dbg_info(DBG_ETHER, "resize from %d to %d", size, ETHER_DATA_MIN);
+        err = pktbuf_resize(buf, ETHER_DATA_MIN);
+        if (err < 0) {
+            dbg_error(DBG_ETHER, "resize err");
+            return err;
+        }
+
+        pktbuf_reset_acc(buf);
+        pktbuf_seek(buf, size);
+        pktbuf_fill(buf, 0, ETHER_DATA_MIN - size);
+        size = ETHER_DATA_MIN;
+    }
+
+    err = pktbuf_add_header(buf, sizeof(ether_hdr_t), 1);
+    if (err < 0){
+        dbg_error(DBG_ETHER, "add ether header err");
+        return err;
+    }
+
+    ether_pkt_t *pkt = (ether_pkt_t *)pktbuf_data(buf);
+    plat_memcpy(pkt->hdr.dest, dest, ETHER_HWA_SIZE);
+    plat_memcpy(pkt->hdr.src, netif->hwaddr.addr, ETHER_HWA_SIZE);
+    pkt->hdr.protocol = x_htons(protocol);
+    display_ether_pkt("ether out", pkt, size);
+
+    //如果目的地址与网卡硬件地址相同，直接写到输入队列
+    if (plat_memcmp(netif->hwaddr.addr, dest, ETHER_HWA_SIZE) == 0) {
+        return netif_put_in(netif, buf, -1);
+    }else {
+        err = netif_put_out(netif, buf, -1);
+        if (err < 0) {
+            dbg_warning(DBG_ETHER, "put pkt out failed");
+            return err;
+        }
+
+        return netif->ops->xmit(netif);
+    }
+   
+
 }

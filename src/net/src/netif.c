@@ -3,6 +3,7 @@
 #include "pktbuf.h"
 #include "exmsg.h"
 #include "protocol.h"
+#include "ether.h"
 
 static netif_t netif_buffer[NETIF_DEV_CNT];
 static mblock_t netif_mblock;
@@ -296,17 +297,23 @@ pktbuf_t *netif_get_out (netif_t *netif, int tmo){
 
 net_err_t netif_out (netif_t *netif, ipaddr_t *ipaddr, pktbuf_t *buf) {
     if (netif->linker_layer) {
-        ether_raw_out(netif, NET_PROTOCOL_ARP, ether_broadcast_addr(), buf);
+        net_err_t err = ether_raw_out(netif, NET_PROTOCOL_ARP, ether_broadcast_addr(), buf);
+        if (err < 0) {
+            dbg_warning(DBG_NETIF, "netif link out err");
+            return err;
+        }
     } else {
+        //加入输出队列直接启动硬件发送
         net_err_t err = netif_put_out (netif, buf, -1);
-      if (err < 0) {
+        if (err < 0) {
             dbg_info(DBG_NETIF, "send failed, queue full");
             return NET_ERR_FULL;
         }
 
-    return netif->ops->xmit(netif);
+        return netif->ops->xmit(netif);
 
     }
+    return NET_ERR_OK;
     
 }
 

@@ -28,4 +28,8 @@
 #define NETIF_INMQ_SIZE 50
 #define NETIF_OUTMQ_SIZE 50
 #define NETIF_DEV_CNT 10
+
+
+
+#define ETHER_DATA_MIN 46
 #endif

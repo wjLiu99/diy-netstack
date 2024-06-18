@@ -21,8 +21,14 @@ typedef struct _ether_pkt_t {
 }ether_pkt_t;
 
 #pragma pack()
+//以太网初始化
 net_err_t ether_init (void);
-
+//获取广播地址
 const uint8_t *ether_broadcast_addr(void);
+
+//发送数据
 net_err_t ether_raw_out (netif_t *netif, uint16_t protocol, const uint8_t *dest, pktbuf_t *buf);
+
+
+
 #endif
