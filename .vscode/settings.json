@@ -67,7 +67,8 @@
         "io_context": "c",
         "string_view": "c",
         "mutex": "c",
-        "ipaddr.h": "c"
+        "ipaddr.h": "c",
+        "mblock.h": "c"
     },
     
     "C_Cpp.default.configurationProvider": "ms-vscode.makefile-tools"

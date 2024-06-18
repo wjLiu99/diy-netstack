@@ -9,6 +9,7 @@
 #include "ether.h"
 #include "ntools.h"
 #include "ntimer.h"
+#include "arp.h"
 
 
 net_err_t net_init(void){
@@ -21,6 +22,7 @@ net_err_t net_init(void){
     netif_init();
     loop_init();
     ether_init();
+    arp_init();
 
     dbg_info(DBG_INIT, "net stack init done ...");
     return NET_ERR_OK;

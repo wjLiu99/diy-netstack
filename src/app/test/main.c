@@ -31,10 +31,12 @@ net_err_t netdev_init(void){
     netif_set_addr(netif, &ip, &netmask, &gateway);
 
     netif_set_active(netif);
+	ipaddr_t dest;
+	ipaddr_from_str(&dest, friend0_ip);
 
     pktbuf_t *buf = pktbuf_alloc(32);
 	pktbuf_fill(buf, 0x53, 32);
-    netif_out(netif, (ipaddr_t *)0, buf);
+    netif_out(netif, &dest, buf);
     dbg_info(DBG_NETIF, "netif0 init done");
     return NET_ERR_OK;
 
@@ -215,7 +217,7 @@ void timer_test(){
 
 }
 void base_test(){
-	timer_test();
+	
 }
 int main (void) {
 	

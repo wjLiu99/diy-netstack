@@ -46,3 +46,11 @@ const ipaddr_t * ipaddr_get_any (){
     static const ipaddr_t ipaddr_any = {.type =IPADDR_V4 , .q_addr = 0};
     return &ipaddr_any;
 }
+
+int ipaddr_is_equal (const ipaddr_t *ipaddr1, const ipaddr_t *ipaddr2) {
+    return ipaddr1->q_addr == ipaddr2->q_addr;
+}
+
+void ipaddr_to_buf(const ipaddr_t *src, uint8_t *in_buf) {
+    *(uint32_t *)in_buf = src->q_addr;
+}

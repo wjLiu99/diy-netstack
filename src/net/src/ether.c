@@ -3,6 +3,7 @@
 #include "dbg.h"
 #include "protocol.h"
 #include "ntools.h"
+#include "arp.h"
 
 #if DBG_DISPLAY_ENABLED(DBG_ETHER)
 static void display_ether_pkt(char * title, ether_pkt_t * pkt, int size) {
@@ -33,7 +34,7 @@ static void display_ether_pkt(char * title, ether_pkt_t * pkt, int size) {
 
 
 net_err_t ether_open (struct _netif_t *netif){
-    return NET_ERR_OK;
+    return arp_make_gratuitous(netif);
 }
 void ether_close (struct _netif_t *netif){
 
@@ -58,11 +59,34 @@ net_err_t ether_in (struct _netif_t *netif , pktbuf_t *buf){
         dbg_warning(DBG_ETHER, "ether pkt err");
         return err;
     }
+
     display_ether_pkt("ether in", pkt, buf->total_size);
+    switch (x_ntohs(pkt->hdr.protocol))
+    {
+    case NET_PROTOCOL_ARP:
+        err = pktbuf_remove_header(buf, sizeof(ether_hdr_t));
+        if (err < 0) {
+            dbg_error(DBG_ETHER, "remove header failed");
+            return NET_ERR_NONE;
+        }
+
+        return arp_in(netif, buf);
+    
+    default:
+        dbg_warning(DBG_ETHER, "unknown packet");
+        return NET_ERR_UNSUPPORT;
+       
+    }
+    
     pktbuf_free(buf);
     return NET_ERR_OK;
 }
 net_err_t ether_out (struct _netif_t *netif, ipaddr_t *dest, pktbuf_t *buf){
+    if (ipaddr_is_equal(&netif->ipaddr, dest)){
+        return ether_raw_out(netif, NET_PROTOCOL_IPv4, netif->hwaddr.addr, buf);
+    }
+
+    arp_make_request(netif, dest);
     return NET_ERR_OK;
 }
 
