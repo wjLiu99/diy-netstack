@@ -45,4 +45,7 @@
 #define ARP_ENTRY_PENDING_TMO   3
 #define ARP_ENTRY_RETRY_CNT     5
 #define ARP_ENTRY_STABLR_TMO    5
+
+
+#define NET_IP_DEFAULT_TTL      64
 #endif

@@ -64,13 +64,37 @@ int ipaddr_is_local_broadcast (const ipaddr_t *ipaddr) {
 
     return ipaddr->q_addr == 0xffffffff;
 }
+//获取主机号
 ipaddr_t ipaddr_get_host (const ipaddr_t *ipaddr, const ipaddr_t *netmask) {
     ipaddr_t host;
     host.q_addr = ipaddr->q_addr & ~netmask->q_addr;
     return host;
 }
+//获取网络号
+ipaddr_t ipaddr_get_netid (const ipaddr_t *ipaddr, const ipaddr_t *netmask) {
+    ipaddr_t netid;
+    netid.q_addr = ipaddr->q_addr & netmask->q_addr;
+    return netid;
+}
+
 int ipaddr_is_direct_broadcast(const ipaddr_t *ipaddr, const ipaddr_t *netmask) {
     ipaddr_t host = ipaddr_get_host(ipaddr, netmask);
     return  host.q_addr == (0xffffffff & ~netmask->q_addr);
 
+}
+
+int ipaddr_is_match (const ipaddr_t *dest, const ipaddr_t *src, const ipaddr_t *netmask) {
+
+    if (ipaddr_is_local_broadcast(dest)) {
+        return 1;
+    }
+
+    ipaddr_t dest_netid = ipaddr_get_netid(dest, netmask);
+    ipaddr_t src_netid = ipaddr_get_netid(src, netmask);
+
+    if (ipaddr_is_direct_broadcast(dest, netmask) && (ipaddr_is_equal(&dest_netid, &src_netid))) {
+        return 1;
+    }
+    
+    return ipaddr_is_equal(dest, src);
 }

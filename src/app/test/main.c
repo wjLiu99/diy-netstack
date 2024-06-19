@@ -10,6 +10,7 @@
 #include "netif.h"
 #include "ntools.h"
 #include "ntimer.h"
+#include "ipv4.h"
 
 pcap_data_t netdev0_data = {.ip = netdev0_phy_ip, .hwaddr = netdev0_hwaddr};
 
@@ -31,12 +32,16 @@ net_err_t netdev_init(void){
     netif_set_addr(netif, &ip, &netmask, &gateway);
 
     netif_set_active(netif);
-	ipaddr_t dest;
-	ipaddr_from_str(&dest, "192.168.133.255");
+	ipaddr_t dest, src;
+	ipaddr_from_str(&dest, friend0_ip);
+	ipaddr_from_str(&src, netdev0_ip);
 
     pktbuf_t *buf = pktbuf_alloc(32);
 	pktbuf_fill(buf, 0x53, 32);
-    netif_out(netif, &dest, buf);
+
+	ipv4_out(0, &dest, &src, buf);
+	//直接调用链路层发送
+    // netif_out(netif, &dest, buf);
     dbg_info(DBG_NETIF, "netif0 init done");
     return NET_ERR_OK;
 

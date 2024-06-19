@@ -2,6 +2,7 @@
 #include "dbg.h"
 #include "mblock.h"
 #include "nlocker.h"
+#include "ntools.h"
 
 static nlocker_t locker;
 
@@ -570,4 +571,24 @@ void pktbuf_inc_ref (pktbuf_t *buf){
     nlocker_lock(&locker);
     buf->ref++;
     nlocker_unlock(&locker);
+}
+
+
+uint16_t pktbuf_checksum16 (pktbuf_t *buf, uint32_t size, uint32_t pre_sum, int complement) {
+    int remain_size = total_blk_remain(buf);
+    if (remain_size < size) {
+        dbg_warning(DBG_PKTBUF, "size too big");
+        return NET_ERR_SIZE;
+    }
+
+    uint32_t sum = pre_sum;
+    while (size > 0) {
+        int blk_size = cur_blk_remain(buf);
+        int cur_size = size > blk_size ? blk_size : size;
+
+        sum = checksum16(buf->blk_offset, cur_size, sum, 0);
+        size -= cur_size;
+        move_forward(buf, cur_size);
+    }
+    return complement ? (uint16_t)~sum : (uint16_t)sum;
 }

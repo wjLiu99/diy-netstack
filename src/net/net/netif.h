@@ -103,4 +103,7 @@ net_err_t netif_out (netif_t *netif, ipaddr_t *ipaddr, pktbuf_t *buf);
 
 //注册链路层接口
 net_err_t netif_register_layer (int type, const link_layer_t *layer);
+
+
+netif_t *netif_get_default(void);
 #endif

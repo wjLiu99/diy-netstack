@@ -53,11 +53,15 @@ net_err_t ipv4_init (void);
 net_err_t ipv4_in (netif_t *netif, pktbuf_t *buf);
 
 
-
+//ip层发送数据,只需要添加包头，调用底层协议发送即可
+net_err_t ipv4_out (uint8_t protocol, ipaddr_t *dest, ipaddr_t *src, pktbuf_t *buf);
 
 //返回ipv4包头长度
 static inline int ipv4_hdr_size (ipv4_pkt_t *pkt) {
     return pkt->ipv4_hdr.shdr * 4;
 }
 
+static inline void ipv4_set_hdr_size (ipv4_pkt_t *pkt, int size) {
+    pkt->ipv4_hdr.shdr = size / 4;
+}
 #endif

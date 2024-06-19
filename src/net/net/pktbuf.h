@@ -66,6 +66,8 @@ int pktbuf_fill (pktbuf_t *buf, uint8_t v, int size);
 
 //增加数据包引用计数
 void pktbuf_inc_ref (pktbuf_t *buf);
+//不连续的数据计算校验和
+uint16_t pktbuf_checksum16 (pktbuf_t *buf, uint32_t len, uint32_t pre_sum, int complement);
 
 
 
