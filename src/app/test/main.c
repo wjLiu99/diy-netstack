@@ -32,7 +32,7 @@ net_err_t netdev_init(void){
 
     netif_set_active(netif);
 	ipaddr_t dest;
-	ipaddr_from_str(&dest, friend0_ip);
+	ipaddr_from_str(&dest, "192.168.133.255");
 
     pktbuf_t *buf = pktbuf_alloc(32);
 	pktbuf_fill(buf, 0x53, 32);

@@ -4,7 +4,9 @@
 #include "mblock.h"
 #include "ntools.h"
 #include "protocol.h"
+#include "ntimer.h"
 
+static net_timer_t cache_timer;
 static arp_entry_t cache_tbl[ARP_CACHE_SIZE];
 static mblock_t cache_mblock;
 static nlist_t cache_list;
@@ -80,16 +82,6 @@ static void arp_pkt_display(arp_pkt_t* packet) {
 #endif
 
 
-static net_err_t cache_init (void) {
-    nlist_init(&cache_list);
-    net_err_t err = mblock_init(&cache_mblock, cache_tbl, sizeof(arp_entry_t), ARP_CACHE_SIZE, NLOCKER_NONE);
-    if (err < 0) {
-        return err;
-    }
-    return NET_ERR_OK;
-}
-
-
 static void cache_clear_all (arp_entry_t *entry) {
     dbg_info(DBG_ARP, "clear arp pkt");
     nlist_node_t *node;
@@ -98,6 +90,97 @@ static void cache_clear_all (arp_entry_t *entry) {
         pktbuf_free(buf);
     }
 }
+//删除arp缓存
+static void cache_free (arp_entry_t *entry) {
+    cache_clear_all(entry);
+    nlist_remove(&cache_list, &entry->node);
+    mblock_free(&cache_mblock, entry);
+}
+
+void arp_clear (netif_t *netif) {
+    nlist_node_t *node, *next;
+    for (node = nlist_first(&cache_list); node; node = next) {
+        next = nlist_node_next(node);
+
+        arp_entry_t *entry = nlist_entry(node, arp_entry_t, node);
+        if (entry->netif == netif) {
+            cache_free(entry);
+        }
+    }
+}
+
+static void arp_cache_tmo (net_timer_t *timer, void *arg) {
+    nlist_node_t *cur, *next;
+    int change_cnt = 0;
+    //不能用nlist_for_each(cur, &cache_list)，遍历时可能会删除表项
+    for (cur = cache_list.first; cur; cur = next)
+    {
+        next = nlist_node_next(cur);
+        arp_entry_t *entry = nlist_entry(cur, arp_entry_t, node);
+        if (--entry->tmo > 0) {
+            continue;
+        }
+        change_cnt++;
+        switch (entry->state)
+        {
+        case NET_ARP_RESOLVED:
+            //已解析状态超时重新请求
+            dbg_info(DBG_ARP, "state to pending:");
+            display_arp_entry(entry);
+            ipaddr_t ipaddr;
+            ipaddr_from_buf(&ipaddr, entry->paddr);
+            entry->state = NET_ARP_WAITING;
+            entry->tmo = to_scan_cnt(ARP_ENTRY_PENDING_TMO);
+            entry->retry = ARP_ENTRY_RETRY_CNT;
+            arp_make_request(entry->netif, &ipaddr);
+            break;
+        
+        case NET_ARP_WAITING:
+            //等待状态重试
+            if (--entry->retry == 0) {
+                dbg_info(DBG_ARP, "pending tmo, free");
+                display_arp_entry(entry);
+                cache_free(entry);
+            } else {
+                dbg_info(DBG_ARP, "pending tmo, retry");
+                display_arp_entry(entry);
+
+                ipaddr_t ipaddr;
+                ipaddr_from_buf(&ipaddr, entry->paddr); 
+                entry->tmo = to_scan_cnt(ARP_ENTRY_PENDING_TMO);
+                arp_make_request(entry->netif, &ipaddr);
+                break;
+
+            }
+        default:
+            dbg_error(DBG_ARP, "unknown arp state");
+            display_arp_entry(entry);
+            break;
+        }
+    }
+    if (change_cnt) {
+        dbg_info(DBG_ARP, "%d arp entry changed.", change_cnt);
+        display_arp_tbl();
+    }
+}
+
+static net_err_t cache_init (void) {
+    nlist_init(&cache_list);
+    
+    net_err_t err = mblock_init(&cache_mblock, cache_tbl, sizeof(arp_entry_t), ARP_CACHE_SIZE, NLOCKER_NONE);
+    if (err < 0) {
+        return err;
+    }
+    err = net_timer_add(&cache_timer, "arp timer", arp_cache_tmo, (void *)0, ARP_TIMER_TMO * 1000, NET_TIMER_RELOAD);
+    if (err < 0) {
+        dbg_error(DBG_ARP, "arp timer add err");
+        return err;
+    }
+    return NET_ERR_OK;
+}
+
+
+
 //分配arp表项
 static arp_entry_t *cache_alloc (int force) {
     arp_entry_t *arp_entry = mblock_alloc(&cache_mblock, -1);
@@ -120,12 +203,6 @@ static arp_entry_t *cache_alloc (int force) {
     return arp_entry;
 }
 
-//删除arp缓存
-static void cache_free (arp_entry_t *entry) {
-    cache_clear_all(entry);
-    nlist_remove(&cache_list, &entry->node);
-    mblock_free(&cache_mblock, entry);
-}
 
 //发送arp表项上缓存的数据包
 static net_err_t cache_send_all (arp_entry_t *entry) {
@@ -147,8 +224,13 @@ static void cache_entry_set (arp_entry_t *entry, const uint8_t *hwaddr, uint8_t 
     plat_memcpy(entry->paddr, ip, IPV4_ADDR_SIZE);
     entry->state = state;
     entry->netif = netif;
-    entry->tmo = 0;
-    entry->retry = 0;
+
+    if (entry->state == NET_ARP_RESOLVED) {
+        entry->tmo = to_scan_cnt(ARP_ENTRY_STABLR_TMO);
+    } else {
+        entry->tmo = to_scan_cnt(ARP_ENTRY_PENDING_TMO);
+    }
+
 }
 //查找arp表项
 static arp_entry_t *cache_find(uint8_t *ip) {
@@ -328,6 +410,23 @@ net_err_t arp_in (netif_t *netif, pktbuf_t *buf) {
     return NET_ERR_OK;
 
 
+}
+
+const uint8_t *arp_find (netif_t *netif, ipaddr_t *ipaddr) {
+    //如果是本地广播或者定向广播
+    if ((ipaddr_is_local_broadcast(ipaddr)) || (ipaddr_is_direct_broadcast(ipaddr, &netif->netmask))) {
+        return ether_broadcast_addr();
+    }
+
+    uint8_t ip_buf[IPV4_ADDR_SIZE];
+    ipaddr_to_buf(ipaddr, ip_buf);
+    arp_entry_t *entry = cache_find(ip_buf);
+    if (entry && (entry->state == NET_ARP_RESOLVED)) {
+        dbg_info(DBG_ARP, "found an arp entry");
+       
+        return (const uint8_t *)entry->hwaddr;  
+    
+    }
 }
 
 net_err_t arp_resolve (netif_t *netif, const ipaddr_t *ipaddr, pktbuf_t *buf) {

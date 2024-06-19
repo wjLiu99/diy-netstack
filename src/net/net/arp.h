@@ -8,6 +8,9 @@
 #define ARP_REQUEST             0x1             // ARP请求包
 #define ARP_REPLY               0x2             // ARP响应包
 
+
+#define to_scan_cnt(tmo)        (tmo / ARP_TIMER_TMO)
+
 #pragma pack(1)
 
 //arp包结构
@@ -56,5 +59,9 @@ net_err_t arp_in (netif_t *netif, pktbuf_t *buf);
 
 //arp解析,传入对方ip地址，查询arp缓存，查到硬件地址则启动发送，没有查到就发送arp请求
 net_err_t arp_resolve (netif_t *netif, const ipaddr_t *ipaddr, pktbuf_t *buf);
+
+void arp_clear (netif_t *netif);
+
+const uint8_t *arp_find (netif_t *netif, ipaddr_t *ipaddr);
 
 #endif

@@ -37,6 +37,8 @@ net_err_t ether_open (struct _netif_t *netif){
     return arp_make_gratuitous(netif);
 }
 void ether_close (struct _netif_t *netif){
+    //清空arp缓存
+    arp_clear(netif);
 
 }
 static net_err_t is_pkt_ok(ether_pkt_t *frame, int total_size) {
@@ -81,13 +83,24 @@ net_err_t ether_in (struct _netif_t *netif , pktbuf_t *buf){
     pktbuf_free(buf);
     return NET_ERR_OK;
 }
+
+
 net_err_t ether_out (struct _netif_t *netif, ipaddr_t *dest, pktbuf_t *buf){
     if (ipaddr_is_equal(&netif->ipaddr, dest)){
         return ether_raw_out(netif, NET_PROTOCOL_IPv4, netif->hwaddr.addr, buf);
     }
+
+    //效率低，查找两次arp表，resolve也回查找
+    const uint8_t *hwaddr = arp_find(netif, dest);
+    if (hwaddr) {
+        return ether_raw_out(netif, NET_PROTOCOL_IPv4, hwaddr, buf);
+    } else {
+        //查arp缓存表，内部会解决发送
+        return arp_resolve(netif, dest, buf);
+    }
     
-    //查arp缓存表，内部会解决发送
-    return arp_resolve(netif, dest, buf);
+    
+    
 
 }
 
