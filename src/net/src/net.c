@@ -10,6 +10,7 @@
 #include "ntools.h"
 #include "ntimer.h"
 #include "arp.h"
+#include "ipv4.h"
 
 
 net_err_t net_init(void){
@@ -23,6 +24,7 @@ net_err_t net_init(void){
     loop_init();
     ether_init();
     arp_init();
+    ipv4_init();
 
     dbg_info(DBG_INIT, "net stack init done ...");
     return NET_ERR_OK;

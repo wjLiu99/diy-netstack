@@ -4,7 +4,7 @@
 #include "dbg.h"
 #include "mblock.h"
 #include "ntimer.h"
-
+#include "ipv4.h"
 
 static void *msg_tbl[EXMSG_MSG_CNT];
 static fixmq_t mq;
@@ -27,7 +27,12 @@ static net_err_t do_netif_in (exmsg_t *msg) {
                 dbg_warning(DBG_EXMSG, "netif in failed, err = %d",err);
             }
         } else {
-            pktbuf_free(buf);
+            //环回接口没有链路层协议，直接交给ip层处理
+            net_err_t err = ipv4_in(netif, buf);
+            if (err < 0) {
+                pktbuf_free(buf);
+                dbg_warning(DBG_EXMSG, "netif in failed, err = %d",err);
+            }
         }
 
     }

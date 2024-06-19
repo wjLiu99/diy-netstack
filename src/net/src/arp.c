@@ -427,6 +427,7 @@ const uint8_t *arp_find (netif_t *netif, ipaddr_t *ipaddr) {
         return (const uint8_t *)entry->hwaddr;  
     
     }
+    return empty_hwaddr;
 }
 
 net_err_t arp_resolve (netif_t *netif, const ipaddr_t *ipaddr, pktbuf_t *buf) {

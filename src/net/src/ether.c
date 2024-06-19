@@ -4,6 +4,7 @@
 #include "protocol.h"
 #include "ntools.h"
 #include "arp.h"
+#include "ipv4.h"
 
 #if DBG_DISPLAY_ENABLED(DBG_ETHER)
 static void display_ether_pkt(char * title, ether_pkt_t * pkt, int size) {
@@ -73,6 +74,15 @@ net_err_t ether_in (struct _netif_t *netif , pktbuf_t *buf){
         }
 
         return arp_in(netif, buf);
+
+    case NET_PROTOCOL_IPv4:
+        err = pktbuf_remove_header(buf, sizeof(ether_hdr_t));
+        if (err < 0) {
+            dbg_error(DBG_ETHER, "remove header failed");
+            return NET_ERR_NONE;
+        }
+
+        return ipv4_in(netif, buf);
     
     default:
         dbg_warning(DBG_ETHER, "unknown packet");
