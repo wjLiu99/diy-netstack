@@ -11,6 +11,7 @@
 #include "ntimer.h"
 #include "arp.h"
 #include "ipv4.h"
+#include "icmpv4.h"
 
 
 net_err_t net_init(void){
@@ -25,6 +26,7 @@ net_err_t net_init(void){
     ether_init();
     arp_init();
     ipv4_init();
+    icmpv4_init();
 
     dbg_info(DBG_INIT, "net stack init done ...");
     return NET_ERR_OK;

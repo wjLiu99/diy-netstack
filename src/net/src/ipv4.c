@@ -3,6 +3,7 @@
 #include "net_cfg.h"
 #include "ntools.h"
 #include "protocol.h"
+#include "icmpv4.h"
 
 #if DBG_DISPLAY_ENABLED(DBG_IP)
 static void display_ip_packet(ipv4_pkt_t* pkt) {
@@ -81,12 +82,19 @@ static void iphdr_htons (ipv4_pkt_t *pkt) {
 static net_err_t ip_normal_in (netif_t *netif, pktbuf_t *buf, ipaddr_t *src_ip, ipaddr_t *dest_ip) {
     ipv4_pkt_t *pkt = (ipv4_pkt_t *)pktbuf_data(buf);
     display_ip_packet(pkt);
+    
 
     switch (pkt->ipv4_hdr.protocol)
     {
-    case NET_PROTOCOL_ICMP:
+    case NET_PROTOCOL_ICMP:{
+        net_err_t err = icmpv4_in(src_ip, &netif->ipaddr, buf);
+        if (err < 0) {
+            dbg_warning(DBG_IP, "icmp in failed");
+            return err;
+        }
         
         break;
+    }
 
     case NET_PROTOCOL_UDP:
         break;
@@ -147,7 +155,7 @@ net_err_t ipv4_out (uint8_t protocol, ipaddr_t *dest, ipaddr_t *src, pktbuf_t *b
         dbg_error(DBG_IP, "add iphdr err");
         return err;
     }
-    
+
     //填充包头
     ipv4_pkt_t *pkt = (ipv4_pkt_t *)pktbuf_data(buf);
     pkt->ipv4_hdr.shdr_all = 0;
