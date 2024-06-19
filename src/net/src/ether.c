@@ -76,6 +76,7 @@ net_err_t ether_in (struct _netif_t *netif , pktbuf_t *buf){
         return arp_in(netif, buf);
 
     case NET_PROTOCOL_IPv4:
+        arp_update_from_ipbuf(netif, buf);
         err = pktbuf_remove_header(buf, sizeof(ether_hdr_t));
         if (err < 0) {
             dbg_error(DBG_ETHER, "remove header failed");

@@ -86,7 +86,7 @@ static net_err_t ip_normal_in (netif_t *netif, pktbuf_t *buf, ipaddr_t *src_ip, 
 
     switch (pkt->ipv4_hdr.protocol)
     {
-    case NET_PROTOCOL_ICMP:{
+    case NET_PROTOCOL_ICMPv4:{
         net_err_t err = icmpv4_in(src_ip, &netif->ipaddr, buf);
         if (err < 0) {
             dbg_warning(DBG_IP, "icmp in failed");
@@ -97,6 +97,8 @@ static net_err_t ip_normal_in (netif_t *netif, pktbuf_t *buf, ipaddr_t *src_ip, 
     }
 
     case NET_PROTOCOL_UDP:
+        iphdr_htons(pkt);
+        icmpv4_out_unreach(src_ip, &netif->ipaddr, ICMPv4_PORT_UNREACH, buf);
         break;
     
     case NET_PROTOCOL_TCP:
@@ -140,9 +142,12 @@ net_err_t ipv4_in (netif_t *netif, pktbuf_t *buf) {
 
     }
    
-   err = ip_normal_in(netif, buf, &src_ip, &dest_ip);
+    err = ip_normal_in(netif, buf, &src_ip, &dest_ip);
 
-    pktbuf_free(buf);
+
+
+    //不用这里释放，返回错误才释放，交给下层就认为包给下层管理了
+    // pktbuf_free(buf);
     return NET_ERR_OK;
 
 
@@ -165,6 +170,7 @@ net_err_t ipv4_out (uint8_t protocol, ipaddr_t *dest, ipaddr_t *src, pktbuf_t *b
     pkt->ipv4_hdr.id = id++;
     pkt->ipv4_hdr.frag_all = 0;
     pkt->ipv4_hdr.ttl = NET_IP_DEFAULT_TTL;
+    pkt->ipv4_hdr.protocol = protocol;
     pkt->ipv4_hdr.hdr_checksum = 0;
     ipaddr_to_buf(src, pkt->ipv4_hdr.src_ip);
     ipaddr_to_buf(dest, pkt->ipv4_hdr.dest_ip);

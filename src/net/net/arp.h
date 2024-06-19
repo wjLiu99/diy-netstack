@@ -64,4 +64,7 @@ void arp_clear (netif_t *netif);
 
 const uint8_t *arp_find (netif_t *netif, ipaddr_t *ipaddr);
 
+//ip数据包更新arp缓存
+void arp_update_from_ipbuf (netif_t *netif, pktbuf_t *buf);
+
 #endif
