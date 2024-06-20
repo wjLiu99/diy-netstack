@@ -1,6 +1,8 @@
 #include "ping.h"
 #include "arpa/inet.h"
 #include "sys_plat.h"
+#include "socket.h"
+#include "net_api.h"
 
 static uint16_t checksum(void* buf, uint16_t len) {
     uint16_t* curr_buf = (uint16_t*)buf;
@@ -47,10 +49,13 @@ void ping_run (ping_t *ping, const char *dest, int count, int size, int interval
     addr.sin_port = 0;
     size = size > PING_BUF_SIZE ? PING_BUF_SIZE : size;
 
+    //填充数据包
     for (int i = 0; i < size; i++) {
         ping->req.buf[i] = i;
     }
     int total_size = sizeof(icmp_hdr_t) + size;
+
+    //循环发送
     for (int i = 0, seq = 0; i < count; i++, seq++) {
         ping->req.icmp_hdr.type = 8;
         ping->req.icmp_hdr.checksum = 0;
@@ -72,6 +77,7 @@ void ping_run (ping_t *ping, const char *dest, int count, int size, int interval
             struct sockaddr_in rv_addr;
             socklen_t rv_len = sizeof(rv_addr);
 
+            //会接收到别的数据包
             len = recvfrom(s, (char *)&ping->reply, sizeof(ping->reply), 0, (struct sockaddr *)&rv_addr, &rv_len);
             if (len < 0) {
                 plat_printf("ping timeout\n");

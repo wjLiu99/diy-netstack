@@ -227,7 +227,7 @@ void ping_test () {
 	ping_run(&ping, "192.168.133.5", 4, 64, 1000);
 }
 void base_test(){
-	// ping_test();
+	ping_test();
 }
 int main (void) {
 	
@@ -244,10 +244,7 @@ int main (void) {
 
 	
 	ping_t p;
-	//ping_run(&p, friend0_ip, 4, 64, 1000);    	// 邻居测试
-	//ping_run(&p, "8.8.8.8", 4, 64, 1000);    	// google的DNS服务器
 
-	//int arg = 0x1234;
 	//exmsg_func_exec(test_func, (void *)&arg);
 
 	char cmd[32], param[32];

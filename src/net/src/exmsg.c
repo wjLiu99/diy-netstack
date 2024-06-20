@@ -40,6 +40,14 @@ static net_err_t do_netif_in (exmsg_t *msg) {
     return NET_ERR_OK;
 }
 
+
+static net_err_t do_func (func_msg_t *func_msg) {
+    dbg_info(DBG_EXMSG, "call func");
+    func_msg->err = func_msg->func(func_msg);
+    //执行完毕通知应用程序
+    sys_sem_notify(func_msg->wait_sem);
+    return NET_ERR_OK;
+}
 static void work_thread(void * arg){
     dbg_info(DBG_EXMSG,"exmsg working....\n");
     net_time_t time;
@@ -58,6 +66,10 @@ static void work_thread(void * arg){
             {
             case NET_EXMSG_NETIF_IN:
                 do_netif_in(msg);
+                break;
+
+            case NET_EXMSG_FUNC:
+                do_func(msg->func);
                 break;
             
             default:
@@ -119,4 +131,43 @@ net_err_t exmsg_netif_in(netif_t *netif){
     }
 
     return NET_ERR_OK;
+}
+
+net_err_t exmsg_func_exec (exmsg_func_t func, void *param) {
+    func_msg_t func_msg;
+    func_msg.func = func;
+    func_msg.param = param;
+    func_msg.err = NET_ERR_OK;
+    func_msg.thread = sys_thread_self();
+    func_msg.wait_sem = sys_sem_create(0);
+    if (func_msg.wait_sem == SYS_SEM_INVALID) {
+        dbg_error(DBG_EXMSG, "err create wait sem");
+        return NET_ERR_MEM;
+    }
+
+    //此时是应用程序调用，应该阻塞等
+    exmsg_t *msg = mblock_alloc(&msg_mblock, 0);
+    if(!msg){
+        dbg_warning(DBG_EXMSG, "no free msg");
+        sys_sem_free(func_msg.wait_sem);
+        return NET_ERR_MEM;
+    }
+
+    //填充消息体，func可以不设置为指针，先分配完消息再填充funcmsg里面的内容
+    msg->type = NET_EXMSG_FUNC;
+    msg->func = &func_msg;
+    net_err_t err = fixmq_send(&mq, msg, 0);
+    if(err < 0){
+        dbg_warning(DBG_EXMSG, "mq full");
+        sys_sem_free(func_msg.wait_sem);
+        mblock_free(&msg_mblock, msg);
+        return err;
+    }
+
+    //等待消息处理完毕才返回， 如果不等的话直接返回局部变量func_msg会被释放，影响工作线程处理消息，会发生越界异常
+    sys_sem_wait(func_msg.wait_sem, 0);
+
+    return func_msg.err;
+
+
 }
