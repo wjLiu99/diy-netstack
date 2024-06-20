@@ -236,7 +236,7 @@ static int frag_is_all_arrived (ip_frag_t *frag) {
 
     return pkt ? !pkt->ipv4_hdr.more : 0;
 }
-
+//ip分片重组
 static pktbuf_t *frag_join (ip_frag_t *frag) {
     pktbuf_t *buf = (pktbuf_t *)0;
     nlist_node_t *node;
@@ -272,7 +272,7 @@ free_return:
     return (pktbuf_t *)0;
 }
 
-
+//处理完整ip数据包
 static net_err_t ip_normal_in (netif_t *netif, pktbuf_t *buf, ipaddr_t *src_ip, ipaddr_t *dest_ip) {
     ipv4_pkt_t *pkt = (ipv4_pkt_t *)pktbuf_data(buf);
     display_ip_packet(pkt);
@@ -305,6 +305,7 @@ static net_err_t ip_normal_in (netif_t *netif, pktbuf_t *buf, ipaddr_t *src_ip, 
     return NET_ERR_OK;
 }
 
+//处理分片的数据包
 static net_err_t ip_frag_in (netif_t *netif, pktbuf_t *buf, ipaddr_t *src_ip, ipaddr_t *dest_ip) {
     ipv4_pkt_t *cur = (ipv4_pkt_t *)pktbuf_data(buf);
     ip_frag_t *frag = frag_find(src_ip, cur->ipv4_hdr.id);

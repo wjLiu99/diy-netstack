@@ -11,7 +11,7 @@
 #include "ntools.h"
 #include "ntimer.h"
 #include "ipv4.h"
-
+#include "ping/ping.h"
 pcap_data_t netdev0_data = {.ip = netdev0_phy_ip, .hwaddr = netdev0_hwaddr};
 
 net_err_t netdev_init(void){
@@ -221,8 +221,13 @@ void timer_test(){
 
 
 }
+
+void ping_test () {
+	ping_t ping;
+	ping_run(&ping, "192.168.133.5", 4, 64, 1000);
+}
 void base_test(){
-	
+	// ping_test();
 }
 int main (void) {
 	
@@ -238,8 +243,25 @@ int main (void) {
 	dbg_error(DBG_TEST, "error");
 
 	
-	while(1){
-		sys_sleep(10);
+	ping_t p;
+	//ping_run(&p, friend0_ip, 4, 64, 1000);    	// 邻居测试
+	//ping_run(&p, "8.8.8.8", 4, 64, 1000);    	// google的DNS服务器
+
+	//int arg = 0x1234;
+	//exmsg_func_exec(test_func, (void *)&arg);
+
+	char cmd[32], param[32];
+    while (1) {
+
+        printf(">>");
+
+		// 注意，这里的scanf对于\r\n的输入会导致只读取了\r，后面还会读取\n
+        scanf("%s %s", cmd, param);
+
+        if (strcmp(cmd, "ping") == 0) {
+            ping_run(&p, param, 4, 1000, 1000);
+        
+		}
 	}
 	return 0;
 }

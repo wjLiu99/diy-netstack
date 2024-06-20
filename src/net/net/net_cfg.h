@@ -13,8 +13,8 @@
 #define DBG_TOOLS               DBG_LEVEL_ERROR
 #define DBG_NTIMER              DBG_LEVEL_ERROR
 #define DBG_ARP                 DBG_LEVEL_ERROR
-#define DBG_IP                  DBG_LEVEL_INFO
-#define DBG_ICMP                DBG_LEVEL_INFO
+#define DBG_IP                  DBG_LEVEL_ERROR
+#define DBG_ICMP                DBG_LEVEL_ERROR
  
 
 #define NET_ENDIAN_LITTLE           1
