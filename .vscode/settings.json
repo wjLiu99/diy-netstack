@@ -69,7 +69,8 @@
         "mutex": "c",
         "ipaddr.h": "c",
         "mblock.h": "c",
-        "netfwd": "c"
+        "netfwd": "c",
+        "net_api.h": "c"
     },
     
     "C_Cpp.default.configurationProvider": "ms-vscode.makefile-tools"

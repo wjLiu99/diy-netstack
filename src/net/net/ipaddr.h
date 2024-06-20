@@ -18,6 +18,8 @@ typedef struct _ipaddr_t{
 
 //设置ip为0
 void ipaddr_set_any (ipaddr_t *ip);
+
+int ipaddr_is_any (ipaddr_t *ip);
 const ipaddr_t * ipaddr_get_any ();
 
 //字符串转ip

@@ -12,6 +12,8 @@
 #include "arp.h"
 #include "ipv4.h"
 #include "icmpv4.h"
+#include "sock.h"
+#include "raw.h"
 
 
 net_err_t net_init(void){
@@ -27,6 +29,8 @@ net_err_t net_init(void){
     arp_init();
     ipv4_init();
     icmpv4_init();
+    socket_init();
+    raw_init();
 
     dbg_info(DBG_INIT, "net stack init done ...");
     return NET_ERR_OK;

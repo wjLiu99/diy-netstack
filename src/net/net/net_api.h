@@ -5,11 +5,13 @@
 #include "socket.h"
 
 #define in_addr             x_in_addr
-
 #define sockaddr_in         x_sockaddr_in
 #define sockaddr            x_sockaddr
+#define socklen_t           x_socklen_t
 
 #define socket(family, type, protocol)              x_socket(family, type, protocol)
+#define sendto(s, buf, len, flags, dest, dlen)      x_sendto(s, buf, len, flags, dest, dlen)
+#define recvfrom(s, buf, len, flags, src, slen)     x_recvfrom(s, buf, len, flags, src, slen)
 
 #undef htons
 #define htons(x)        x_htons(x)

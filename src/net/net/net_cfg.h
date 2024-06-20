@@ -15,6 +15,9 @@
 #define DBG_ARP                 DBG_LEVEL_ERROR
 #define DBG_IP                  DBG_LEVEL_ERROR
 #define DBG_ICMP                DBG_LEVEL_ERROR
+#define DBG_SOCKET              DBG_LEVEL_INFO
+#define DBG_RAW                 DBG_LEVEL_INFO
+
  
 
 #define NET_ENDIAN_LITTLE           1
@@ -51,5 +54,10 @@
 #define NET_IP_DEFAULT_TTL      64
 
 #define IP_FRAGS_MAX_NR         10
-#define IP_FRAG_MAX_BUF_NR     10
+#define IP_FRAG_MAX_BUF_NR      10
+
+
+#define RAW_MAX_NR              10
+
+#define SOCKET_MAX_NR       RAW_MAX_NR
 #endif

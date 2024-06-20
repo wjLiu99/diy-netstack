@@ -232,9 +232,10 @@ void base_test(){
 int main (void) {
 	
 	net_init();
-	base_test();
+	
 	netdev_init();
 	net_start();
+	base_test();
 	
 	
 
