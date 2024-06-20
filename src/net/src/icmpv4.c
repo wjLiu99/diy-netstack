@@ -18,10 +18,10 @@ static void display_icmp_packet(char * title, icmpv4_pkt_t  * pkt) {
 #endif 
 
 net_err_t icmpv4_init (void) {
-    dbg_error(DBG_ICMP, "icmp init");
+    dbg_info(DBG_ICMP, "icmp init");
 
 
-    dbg_error(DBG_ICMP, "icmp init done");
+    dbg_info(DBG_ICMP, "icmp init done");
     return NET_ERR_OK;
 
 }

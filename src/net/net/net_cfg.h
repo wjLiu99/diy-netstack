@@ -49,4 +49,7 @@
 
 
 #define NET_IP_DEFAULT_TTL      64
+
+#define IP_FRAGS_MAX_NR         10
+#define IP_FRAG_MAX_BUF_NR     10
 #endif

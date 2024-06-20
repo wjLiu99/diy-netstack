@@ -9,6 +9,8 @@
 
 #define NET_VERSION_IPV4    4
 #pragma pack(1)
+
+
 typedef struct _ipv4_hdr_t {
     union {
         
@@ -32,13 +34,36 @@ typedef struct _ipv4_hdr_t {
 
     uint16_t total_len;
     uint16_t id;
-    uint16_t frag_all;
+
+
+    union {
+        
+        struct {
+#if NET_ENDIAN_LITTLE
+        //大端存储位域相反
+            uint16_t offset : 13;
+            uint16_t more : 1;
+            
+            uint16_t disable : 1;
+            uint16_t reversed :1;
+        };
+#else
+            uint16_t reversed : 1;
+            uint16_t more : 1;
+            uint16_t disable : 1;
+            uint16_t offset : 13;
+        };
+#endif
+        uint16_t frag_all;
+    };
+    
+    
     uint8_t ttl;
     uint8_t protocol;
     uint16_t hdr_checksum;
     uint8_t src_ip[IPV4_ADDR_SIZE];   //u32
     uint8_t dest_ip[IPV4_ADDR_SIZE];
-}ipv4_hdr_t;
+} ipv4_hdr_t;
 
 typedef struct _ipv4_pkt_t {
     ipv4_hdr_t ipv4_hdr;
@@ -46,6 +71,15 @@ typedef struct _ipv4_pkt_t {
 
 }ipv4_pkt_t;
 #pragma pack()
+
+//分片结构
+typedef struct _ip_frag_t {
+    ipaddr_t ip;
+    uint16_t id;
+    int tmo;
+    nlist_t buf_list;           //链接同一分片的数据包
+    nlist_node_t node;          //链接不同的分片
+} ip_frag_t;
 
 net_err_t ipv4_init (void);
 
