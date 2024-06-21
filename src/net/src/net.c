@@ -24,13 +24,14 @@ net_err_t net_init(void){
     pktbuf_init();
     net_timer_init();
     netif_init();
-    loop_init();
+
     ether_init();
     arp_init();
     ipv4_init();
     icmpv4_init();
     socket_init();
     raw_init();
+    loop_init();
 
     dbg_info(DBG_INIT, "net stack init done ...");
     return NET_ERR_OK;

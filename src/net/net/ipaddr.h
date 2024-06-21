@@ -20,7 +20,7 @@ typedef struct _ipaddr_t{
 void ipaddr_set_any (ipaddr_t *ip);
 
 int ipaddr_is_any (ipaddr_t *ip);
-const ipaddr_t * ipaddr_get_any ();
+ipaddr_t * ipaddr_get_any ();
 
 //字符串转ip
 net_err_t ipaddr_from_str (ipaddr_t *dest, const char *str);
@@ -41,4 +41,11 @@ int ipaddr_is_direct_broadcast(const ipaddr_t *ipaddr, const ipaddr_t *netmask);
 
 //判断接受方是否是本机地址
 int ipaddr_is_match (const ipaddr_t *dest, const ipaddr_t *src, const ipaddr_t *netmask);
+
+
+ipaddr_t ipaddr_get_host (const ipaddr_t *ipaddr, const ipaddr_t *netmask);
+//获取网络号
+ipaddr_t ipaddr_get_netid (const ipaddr_t *ipaddr, const ipaddr_t *netmask);
+
+int ipaddr_1_cnt (ipaddr_t *ip);
 #endif

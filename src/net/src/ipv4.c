@@ -12,6 +12,10 @@ static ip_frag_t frag_array[IP_FRAGS_MAX_NR];
 static mblock_t frag_mblock;
 static nlist_t frag_list;
 
+static rentry_t rt_tbl[IP_ROUTE_NR];
+static mblock_t rt_mblock;
+static nlist_t rt_list;
+
 static uint16_t get_frag_start (ipv4_pkt_t *pkt) {
     return pkt->ipv4_hdr.offset * 8;
 }
@@ -24,6 +28,25 @@ static uint16_t get_frag_end (ipv4_pkt_t *pkt) {
     return get_frag_start(pkt) + get_data_size(pkt);
 }
 #if DBG_DISPLAY_ENABLED(DBG_IP)
+void rt_nlist_display(void) {
+    plat_printf("Route table:\n");
+
+    for (int i = 0, idx = 0; i < IP_ROUTE_NR; i++) {
+        rentry_t* entry = rt_tbl + i;
+        if (entry->netif) {
+            plat_printf("%d: ", idx++);
+            dbg_dump_ip("net:", &entry->net);
+            plat_printf("\t");
+            dbg_dump_ip("mask:", &entry->mask);
+            plat_printf("\t");
+            dbg_dump_ip("next_hop:", &entry->next_hop);
+            plat_printf("\t");
+            plat_printf("if: %s", entry->netif->name);
+            plat_printf("\n");
+        }
+    }
+}
+
 static void display_ip_frags(void) {
     plat_printf("==========ip frag=============\n");
     nlist_node_t *f_node, * p_node;
@@ -74,9 +97,62 @@ static void display_ip_packet(ipv4_pkt_t* pkt) {
 #else
 #define display_ip_packet(pkt)
 #define display_ip_frags()
+#define rt_nlist_display()
 #endif
 
 
+
+void rt_init (void) {
+    nlist_init(&rt_list);
+    mblock_init(&rt_mblock, rt_tbl, sizeof(rentry_t), IP_ROUTE_NR, NLOCKER_NONE);
+}
+
+void rt_add (ipaddr_t *net, ipaddr_t *mask, ipaddr_t *next_hop, netif_t *netif) {
+    rentry_t *entry = (rentry_t *)mblock_alloc(&rt_mblock, -1);
+    if (!entry) {
+        dbg_warning(DBG_IP, "alloc rt err");
+        return;
+    }
+
+    ipaddr_copy(&entry->net, net);
+    ipaddr_copy(&entry->mask, mask);
+    ipaddr_copy(&entry->next_hop, next_hop);
+    entry->netif= netif;
+    entry->mask_1_cnt = ipaddr_1_cnt(mask);
+
+    nlist_insert_last(&rt_list, &entry->node);
+    rt_nlist_display();
+}
+
+void rt_remove (ipaddr_t *net, ipaddr_t *netmask) {
+    nlist_node_t *node;
+    nlist_for_each(node, &rt_list) {
+        rentry_t *entry = nlist_entry(node, rentry_t, node);
+        if (ipaddr_is_equal(net, &entry->net) && ipaddr_is_equal(netmask, &entry->mask)) {
+            nlist_remove(&rt_list, &entry->node);
+            mblock_free(&rt_mblock, entry);
+            rt_nlist_display();
+            return ;
+        }
+    }
+}
+
+//查找符合目标网络的路由表项
+rentry_t *rt_find (ipaddr_t *ip) {
+    nlist_node_t *node;
+    rentry_t *e = (rentry_t *)0;
+    nlist_for_each(node, &rt_list) {
+        rentry_t *entry = nlist_entry(node, rentry_t, node);
+        ipaddr_t net = ipaddr_get_netid(ip, &entry->mask);
+        if (!ipaddr_is_equal(&net, &entry->net)) {
+            continue;
+        }
+        if (!e || (e->mask_1_cnt < entry->mask_1_cnt)) {
+            e = entry;
+        }
+    }
+    return e;
+}
 static net_err_t frag_init (void) {
     nlist_init(&frag_list);
     net_err_t err = mblock_init(&frag_mblock, frag_array, sizeof(ip_frag_t), IP_FRAGS_MAX_NR, NLOCKER_NONE);
@@ -120,6 +196,7 @@ net_err_t ipv4_init (void) {
         dbg_error(DBG_IP, "frag init err");
         return err;
     }
+    rt_init();
     dbg_info(DBG_IP, "ipv4 init done..");
     return NET_ERR_OK;
 
@@ -398,6 +475,12 @@ net_err_t ipv4_out (uint8_t protocol, ipaddr_t *dest, ipaddr_t *src, pktbuf_t *b
         dbg_error(DBG_IP, "add iphdr err");
         return err;
     }
+    rentry_t *rt = rt_find(dest);
+    if (!rt) {
+        dbg_error(DBG_IP, "send failed. no route");
+        return NET_ERR_UNREACH;
+    } 
+    netif_t *netif = rt->netif;
 
     //填充包头
     ipv4_pkt_t *pkt = (ipv4_pkt_t *)pktbuf_data(buf);
@@ -410,7 +493,12 @@ net_err_t ipv4_out (uint8_t protocol, ipaddr_t *dest, ipaddr_t *src, pktbuf_t *b
     pkt->ipv4_hdr.ttl = NET_IP_DEFAULT_TTL;
     pkt->ipv4_hdr.protocol = protocol;
     pkt->ipv4_hdr.hdr_checksum = 0;
-    ipaddr_to_buf(src, pkt->ipv4_hdr.src_ip);
+    if (!src || ipaddr_is_any(src)) {
+        ipaddr_to_buf(&netif->ipaddr, pkt->ipv4_hdr.src_ip);
+    } else {
+        ipaddr_to_buf(src, pkt->ipv4_hdr.src_ip);
+    }
+    
     ipaddr_to_buf(dest, pkt->ipv4_hdr.dest_ip);
     display_ip_packet(pkt);
 
@@ -420,8 +508,17 @@ net_err_t ipv4_out (uint8_t protocol, ipaddr_t *dest, ipaddr_t *src, pktbuf_t *b
     pktbuf_reset_acc(buf);
     pkt->ipv4_hdr.hdr_checksum = pktbuf_checksum16(buf, ipv4_hdr_size(pkt), 0, 1);
 
-    //发送
-    err = netif_out(netif_get_default(), dest, buf);
+    //发送,不能直接使用缺省网络接口,也不能直接使用目的地址了，目的地址填充到了ip包头，发送的目的地址应该是下一跳地址
+    // err = netif_out(netif_get_default(), dest, buf);
+    ipaddr_t next_hop;
+    //路由表下一跳为空直接交付，不为空间接交付
+    if (ipaddr_is_any(&rt->next_hop)) {
+        ipaddr_copy(&next_hop, dest);
+    } else {
+        ipaddr_copy(&next_hop, &rt->next_hop);
+    }
+    
+    err = netif_out(netif, &next_hop, buf);
     if (err < 0) {
         dbg_error(DBG_IP, "send ip pkt err");
         return err;

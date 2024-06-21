@@ -236,17 +236,9 @@ int main (void) {
 	netdev_init();
 	net_start();
 	base_test();
-	
-	
-
-	dbg_info(DBG_TEST, "info");
-	dbg_warning(DBG_TEST, "warning");
-	dbg_error(DBG_TEST, "error");
 
 	
 	ping_t p;
-
-	//exmsg_func_exec(test_func, (void *)&arg);
 
 	char cmd[32], param[32];
     while (1) {

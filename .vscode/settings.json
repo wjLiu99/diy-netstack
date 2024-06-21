@@ -70,7 +70,8 @@
         "ipaddr.h": "c",
         "mblock.h": "c",
         "netfwd": "c",
-        "net_api.h": "c"
+        "net_api.h": "c",
+        "icmpv4.h": "c"
     },
     
     "C_Cpp.default.configurationProvider": "ms-vscode.makefile-tools"

@@ -19,7 +19,7 @@
 // 系统硬件配置
 // 不同网卡配置，共2块网卡
 #if 1
-static const char netdev0_ip[] = "192.168.133.2";
+static const char netdev0_ip[] = "192.168.133.2";   //协议栈使用ip
 static const char netdev0_gw[] = "192.168.133.1";
 static const char friend0_ip[] = "192.168.133.1";
 static const char netdev0_phy_ip[] = "192.168.133.102";    // 用于收发包的真实网卡ip地址，在qemu上不需要使用
@@ -27,11 +27,13 @@ static const char netdev0_mask[] = "255.255.255.0";
 static const uint8_t netdev0_hwaddr[] = { 0x00, 0x0c, 0x29, 0x2a, 0x10, 0xe4 };
 // 00:0c:29:2a:10:e4
 #else
-static const char netdev0_ip[] = "192.168.74.2";
-static const char netdev0_gw[] = "192.168.74.3";
-static const char friend0_ip[] = "192.168.74.3";
-static const char netdev0_phy_ip[] = "192.168.74.1";    // 用于收发包的真实网卡ip地址
+static const char netdev0_ip[] = "192.168.64.2";
+static const char netdev0_gw[] = "192.168.64.1";
+static const char friend0_ip[] = "192.168.64.1";
+static const char netdev0_phy_ip[] = "192.168.64.102";    // 用于收发包的真实网卡ip地址
 static const char netdev0_mask[] = "255.255.255.0";
+static const uint8_t netdev0_hwaddr[] = { 0x00, 0x0c, 0x29, 0x2a, 0x10, 0xda };
+
 #endif
 
 static const char netdev1_ip[] = "10.0.2.200";

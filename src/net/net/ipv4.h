@@ -81,6 +81,24 @@ typedef struct _ip_frag_t {
     nlist_node_t node;          //链接不同的分片
 } ip_frag_t;
 
+//路由表结构
+typedef struct _rentry_t {
+    ipaddr_t net;
+    ipaddr_t mask;
+    ipaddr_t next_hop;
+    netif_t *netif;
+    int mask_1_cnt;
+    nlist_node_t node;
+} rentry_t;
+
+//路由表初始化
+void rt_init (void);
+//添加路由表项
+void rt_add (ipaddr_t *net, ipaddr_t *mask, ipaddr_t *next_hop, netif_t *netif);
+//net 和mask确定唯一一个表项
+void rt_remove (ipaddr_t *net, ipaddr_t *netmask);
+
+rentry_t *rt_find (ipaddr_t *ip);
 net_err_t ipv4_init (void);
 
 //ip层处理接收数据

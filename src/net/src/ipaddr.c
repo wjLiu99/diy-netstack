@@ -45,7 +45,7 @@ void ipaddr_copy (ipaddr_t *dest, const ipaddr_t *src){
     dest->q_addr = src->q_addr;
 }
 
-const ipaddr_t * ipaddr_get_any (){
+ipaddr_t * ipaddr_get_any (){
     static const ipaddr_t ipaddr_any = {.type =IPADDR_V4 , .q_addr = 0};
     return &ipaddr_any;
 }
@@ -100,4 +100,16 @@ int ipaddr_is_match (const ipaddr_t *dest, const ipaddr_t *src, const ipaddr_t *
     }
     
     return ipaddr_is_equal(dest, src);
+}
+
+int ipaddr_1_cnt (ipaddr_t *ip) {
+    int cnt = 0;
+    uint32_t addr = ip->q_addr;
+    while (addr) {
+        if (addr & 0x8000000) {
+            cnt++;
+        }
+        addr <<= 1;
+    }
+    return cnt;
 }

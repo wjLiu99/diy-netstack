@@ -4,6 +4,8 @@
 #include "exmsg.h"
 #include "protocol.h"
 #include "ether.h"
+#include "ipaddr.h"
+#include "ipv4.h"
 
 static netif_t netif_buffer[NETIF_DEV_CNT];
 static mblock_t netif_mblock;
@@ -185,7 +187,7 @@ net_err_t netif_set_hwaddr (netif_t *netif, const char *hwaddr, int len) {
     return NET_ERR_OK;
 }
 
-
+//激活网卡
 net_err_t netif_set_active (netif_t *netif) {
     if (netif->state != NETIF_OPENED) {
         dbg_error(DBG_NETIF, "netif not opened");
@@ -199,7 +201,11 @@ net_err_t netif_set_active (netif_t *netif) {
             return err;
         }
     }
-
+    ipaddr_t ip = ipaddr_get_netid(&netif->ipaddr, &netif->netmask);
+    //激活网卡时添加路由表项
+    rt_add(&ip, &netif->netmask, ipaddr_get_any(), netif);
+    ipaddr_from_str(&ip, "255.255.255.255");
+    rt_add(&netif->ipaddr, &ip, ipaddr_get_any(), netif);
     netif->state = NETIF_ACTIVE;
 
     if (!netif_default && (netif->type != NETIF_TYPE_LOOP)) {
@@ -227,8 +233,15 @@ net_err_t netif_set_deactive (netif_t *netif){
     }
 
     if (netif == netif_default) {
+        rt_remove(ipaddr_get_any(), ipaddr_get_any());
         netif_default = (netif_t *)0;
     }
+
+    ipaddr_t ip = ipaddr_get_netid(&netif->ipaddr, &netif->netmask);
+    //删除路由表项
+    rt_remove(&ip, &netif->netmask);
+    ipaddr_from_str(&ip, "255.255.255.255");
+    rt_remove(&netif->ipaddr, &ip);
     netif->state = NETIF_OPENED;
     display_netif_list();
     return NET_ERR_OK;
@@ -249,8 +262,16 @@ net_err_t netif_close (netif_t *netif){
     return NET_ERR_OK;
 }
 
+//添加缺省网络接口
 void netif_set_default (netif_t *netif){
     netif_default = netif;
+    if (!ipaddr_is_any(&netif->gateway)) {
+        if (netif_default) {
+            rt_remove(ipaddr_get_any(), ipaddr_get_any());
+        }
+        rt_add(ipaddr_get_any(), ipaddr_get_any(), &netif->gateway, netif);
+    }
+    
 }
 netif_t *netif_get_default(void) {
     return netif_default;

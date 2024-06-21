@@ -66,8 +66,10 @@ static net_err_t raw_sendto (struct _sock_t *s, const void *buf, size_t len, int
         dbg_error(DBG_RAW, "copy_data err");
         goto end;
     }
+    //不能直接传网卡默认地址
+    // err = ipv4_out(s->protocol, &dest_ip, &netif_get_default()->ipaddr, pktbuf);
+    err = ipv4_out(s->protocol, &dest_ip, &s->remote_ip, pktbuf);
 
-    err = ipv4_out(s->protocol, &dest_ip, &netif_get_default()->ipaddr, pktbuf);
     if (err < 0) {
         dbg_error(DBG_RAW, "send err");
         goto end;
