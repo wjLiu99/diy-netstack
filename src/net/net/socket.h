@@ -19,11 +19,11 @@
 
 #undef IPPROTO_ICMP
 #define IPPROTO_ICMP            1               // ICMP协议
-// #undef IPPROTO_UDP
-// #define IPPROTO_UDP             17              // UDP协议
+#undef IPPROTO_UDP
+#define IPPROTO_UDP             17              // UDP协议
 
-// #undef IPPROTO_TCP
-// #define IPPROTO_TCP             6               // TCP协议
+#undef IPPROTO_TCP
+#define IPPROTO_TCP             6               // TCP协议
 
 #undef INADDR_ANY
 #define INADDR_ANY              0               // 任意IP地址，即全0的地址

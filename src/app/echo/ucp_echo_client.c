@@ -3,7 +3,8 @@
 #include <stdio.h>
 // #include "net_api.h"
 #include"sys_plat.h"
-#include <arpa/inet.h>
+// #include <arpa/inet.h>
+#include "net_api.h"
 
 
 int udp_echo_client_start(const char* ip, int port) {

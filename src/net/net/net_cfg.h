@@ -13,10 +13,11 @@
 #define DBG_TOOLS               DBG_LEVEL_ERROR
 #define DBG_NTIMER              DBG_LEVEL_ERROR
 #define DBG_ARP                 DBG_LEVEL_ERROR
-#define DBG_IP                  DBG_LEVEL_INFO
+#define DBG_IP                  DBG_LEVEL_ERROR
 #define DBG_ICMP                DBG_LEVEL_ERROR
-#define DBG_SOCKET              DBG_LEVEL_INFO
-#define DBG_RAW                 DBG_LEVEL_INFO
+#define DBG_SOCKET              DBG_LEVEL_ERROR
+#define DBG_RAW                 DBG_LEVEL_ERROR
+#define DBG_UDP                 DBG_LEVEL_INFO
 
  
 
@@ -58,11 +59,13 @@
 
 
 #define RAW_MAX_NR              10
+#define UDP_MAX_NR              10
 
-#define SOCKET_MAX_NR       RAW_MAX_NR
+#define SOCKET_MAX_NR       (RAW_MAX_NR + UDP_MAX_NR)
 
 
 #define RAW_MAX_RECV        50
 
 #define IP_ROUTE_NR         20
+
 #endif

@@ -4,6 +4,7 @@
 #include "net_cfg.h"
 #include "raw.h"
 #include "socket.h"
+#include "udp.h"
 
 
 static x_socket_t socket_tbl[SOCKET_MAX_NR];
@@ -176,6 +177,7 @@ net_err_t sock_create_req_in (struct _func_msg_t *msg) {
         sock_t * (*create) (int family, int protocol);  //创建回调函数
     } sock_tbl[] = {
         [SOCK_RAW] = {.protocol = IPPROTO_ICMP , .create = raw_create,},
+        [SOCK_DGRAM] = {.protocol = IPPROTO_UDP, .create = udp_create},
     };
     sock_req_t *req = (sock_req_t *)msg->param;
     sock_create_t *param = &req->create;

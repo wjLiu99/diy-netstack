@@ -14,6 +14,7 @@
 #include "icmpv4.h"
 #include "sock.h"
 #include "raw.h"
+#include "udp.h"
 
 
 net_err_t net_init(void){
@@ -31,6 +32,8 @@ net_err_t net_init(void){
     icmpv4_init();
     socket_init();
     raw_init();
+    udp_init();
+    //要先初始化路由表
     loop_init();
 
     dbg_info(DBG_INIT, "net stack init done ...");
