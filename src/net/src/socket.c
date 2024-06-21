@@ -131,9 +131,32 @@ int x_setsockopt(int s, int level, int optname, const char * optval, int len) {
     req.wait_tmo = 0;
     net_err_t err = exmsg_func_exec(sock_setsockopt_req_in, &req);
     if (err < 0) {
-        dbg_error(DBG_SOCKET, "req create socket err");
+        dbg_error(DBG_SOCKET, "req  setsocopt err");
         return -1;
     }
     return 0;
 
+}
+
+int x_close(int s) {
+
+    sock_req_t req;
+    req.sockfd = s;
+    req.wait = (sock_wait_t *)0;
+    req.wait_tmo = 0;
+    net_err_t err = exmsg_func_exec(sock_close_req_in, &req);
+    if (err < 0) {
+        dbg_error(DBG_SOCKET, "req close socket err");
+        return -1;
+    }
+
+
+    if (req.wait) {
+            err = sock_wait_enter(req.wait, req.wait_tmo);
+            if (err < 0) {
+            dbg_error(DBG_SOCKET, "sock wait err");
+            return -1;
+            }
+    } 
+    return 0;
 }
