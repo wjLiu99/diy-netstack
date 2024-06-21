@@ -10,6 +10,8 @@ int x_socket (int family, int type, int protocol) {
     req.create.family = family;
     req.create.type = type;
     req.create.protocol = protocol;
+    req.wait = (sock_wait_t *)0;
+    req.wait_tmo = 0;
     net_err_t err = exmsg_func_exec(sock_create_req_in, &req);
     if (err < 0) {
         dbg_error(DBG_SOCKET, "req create socket err");
@@ -41,12 +43,24 @@ ssize_t x_sendto(int s, const void *buf, size_t len, int flags, const struct x_s
         req.data.len = len;
         req.data.flags = flags;
         req.data.comp_len = 0;
+        req.wait = (sock_wait_t *)0;
+        req.wait_tmo = 0;
 
         net_err_t err = exmsg_func_exec(sock_sendto_req_in, &req);
         if (err < 0) {
             dbg_error(DBG_SOCKET, "req sendto err");
             return -1;
         }
+
+        if (req.wait) {
+            err = sock_wait_enter(req.wait, req.wait_tmo);
+            if (err < 0) {
+            dbg_error(DBG_SOCKET, "sock wait err");
+            return -1;
+        }
+
+        }
+            
         len -= req.data.comp_len;
         start += req.data.comp_len;
         send_size += (ssize_t)req.data.comp_len;
@@ -64,25 +78,62 @@ ssize_t x_recvfrom(int s, void* buf, size_t len, int flags, struct x_sockaddr* s
         dbg_error(DBG_SOCKET, "recv param err");
         return -1;
     }
+    while (1) {
+        sock_req_t req;
+        req.sockfd = s;
+        req.data.buf = buf;
+        req.data.addr = (struct x_sockaddr *)src;
+        req.data.addr_len = src_len;
+        req.data.len = len;
+        req.data.flags = flags;
+        req.data.comp_len = 0;
+        req.wait = (sock_wait_t *)0;
+        req.wait_tmo = 0;
 
-    sock_req_t req;
-    req.sockfd = s;
-    req.data.buf = buf;
-    req.data.addr = (struct x_sockaddr *)src;
-    req.data.addr_len = src_len;
-    req.data.len = len;
-    req.data.flags = flags;
-    req.data.comp_len = 0;
+        net_err_t err = exmsg_func_exec(sock_recvfrom_req_in, &req);
+        if (err < 0) {
+            dbg_error(DBG_SOCKET, "req sendto err");
+            return -1;
+        }
 
-    net_err_t err = exmsg_func_exec(sock_recvfrom_req_in, &req);
-    if (err < 0) {
-        dbg_error(DBG_SOCKET, "req sendto err");
-        return -1;
-    }
+        if (req.data.comp_len) {
+            return (ssize_t)req.data.comp_len;
+        }
 
-    if (req.data.comp_len) {
-        return (ssize_t)req.data.comp_len;
+        if (req.wait) {
+            err = sock_wait_enter(req.wait, req.wait_tmo);
+            if (err < 0) {
+            dbg_error(DBG_SOCKET, "sock wait err");
+            return -1;
+            } 
+
+        } else {
+                break;
+            }
+
     }
     return -1;
+}
+
+int x_setsockopt(int s, int level, int optname, const char * optval, int len) {
+
+    if (!optval || !len) {
+        dbg_error(DBG_SOCKET, "param err");
+        return -1;
+    }
+    sock_req_t req;
+    req.sockfd = s;
+    req.opt.len = len;
+    req.opt.level = level;
+    req.opt.optname = optname;
+    req.opt.optval = optval;
+    req.wait = (sock_wait_t *)0;
+    req.wait_tmo = 0;
+    net_err_t err = exmsg_func_exec(sock_setsockopt_req_in, &req);
+    if (err < 0) {
+        dbg_error(DBG_SOCKET, "req create socket err");
+        return -1;
+    }
+    return 0;
 
 }

@@ -28,6 +28,25 @@
 #undef INADDR_ANY
 #define INADDR_ANY              0               // 任意IP地址，即全0的地址
 
+#undef SOL_SOCKET
+#define SOL_SOCKET              0
+#undef SOL_TCP
+#define SOL_TCP                 1
+
+// sock选项
+#undef SO_RCVTIMEO
+#define SO_RCVTIMEO             1            // 设置用于阻止接收调用的超时（以毫秒为单位）
+#undef SO_SNDTIMEO
+#define SO_SNDTIMEO             2            // 用于阻止发送调用的超时（以毫秒为单位）。
+#undef SO_KEEPALIVE
+#define SO_KEEPALIVE            3            // Keepalive选项
+#undef TCP_KEEPIDLE
+#define TCP_KEEPIDLE            4           // Keepalive空闲时间
+#undef TCP_KEEPINTVL                        
+#define TCP_KEEPINTVL           5           // 超时间隔
+#undef TCP_KEEPCNT
+#define TCP_KEEPCNT             6           // 重试的次数
+
 #pragma pack(1)
 struct x_in_addr {
     union{
@@ -60,8 +79,14 @@ struct x_sockaddr_in {
 };
 #pragma pack()
 
+struct x_timeval {
+    int tv_sec;             // 秒
+    int tv_usec;            // 微秒
+};
+
 
 int x_socket (int family, int type, int protocol);
 ssize_t x_sendto(int s, const void* buf, size_t len, int flags, const struct x_sockaddr* dest, x_socklen_t dest_len);
 ssize_t x_recvfrom(int s, void* buf, size_t len, int flags, struct x_sockaddr* src, x_socklen_t* src_len);
+int x_setsockopt(int sockfd, int level, int optname, const char * optval, int optlen);
 #endif

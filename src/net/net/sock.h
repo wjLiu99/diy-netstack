@@ -10,6 +10,24 @@ struct _sock_t;
 struct x_sockaddr;
 struct _sock_req_t;
 
+#define SOCK_WAIT_READ      (1 << 0)
+#define SOCK_WAIT_WRITE     (1 << 1)
+#define SOCK_WAIT_CONN      (1 << 2)
+#define SOCK_WAIT_ALL       (SOCK_WAIT_READ | SOCK_WAIT_WRITE | SOCK_WAIT_ALL)
+
+//等待结构
+typedef struct _sock_wait_t {
+    sys_sem_t sem;
+    net_err_t err;
+    int waiting;
+}sock_wait_t;
+net_err_t sock_wait_init (sock_wait_t *wait);
+void sock_wait_destory (sock_wait_t *wait);
+void sock_wait_add (sock_wait_t *wait, int tmo, struct _sock_req_t *req);   //由工作线程调用
+net_err_t sock_wait_enter (sock_wait_t *wait, int tmo);                     //应用程序等待
+
+void sock_wait_leave (sock_wait_t *wait, net_err_t err);                    //通知应用程序退出等待结构，以及什么原因退出
+
 typedef struct _sock_ops_t{
     net_err_t (*close)(struct _sock_t* s);
 	net_err_t (*sendto)(struct _sock_t * s, const void* buf, size_t len, int flags,
@@ -37,7 +55,10 @@ typedef struct _sock_t {
     int send_tmo;
     nlist_node_t node;
 
-
+    //指针， 有些sock不需要
+    sock_wait_t *recv_wait;
+    sock_wait_t *send_wait;
+    sock_wait_t *conn_wait;
 } sock_t;
 
 typedef struct _x_socket_t {
@@ -66,13 +87,24 @@ typedef struct _sock_data_t {
     x_socklen_t *addr_len;
     ssize_t comp_len;
 }sock_data_t;
+
+typedef struct _sock_opt_t {
+    int level;
+    int optname;
+    const char *optval;
+    int len;
+}sock_opt_t;
+
 //通用参数结构
 typedef struct _sock_req_t {
     int sockfd;
     union {
         sock_create_t create;
         sock_data_t data;
+        sock_opt_t opt;
     };
+    sock_wait_t *wait;
+    int wait_tmo;
 
 } sock_req_t;
 net_err_t socket_init (void);
@@ -80,9 +112,14 @@ net_err_t socket_init (void);
 net_err_t sock_create_req_in (struct _func_msg_t *msg);
 net_err_t sock_sendto_req_in (struct _func_msg_t *msg);
 net_err_t sock_recvfrom_req_in (struct _func_msg_t *msg);
+net_err_t sock_setsockopt_req_in (struct _func_msg_t *msg);
 
 //sock初始化
 net_err_t sock_init (sock_t *sock, int family, int protocol, const sock_ops_t *ops);
+
+net_err_t sock_uninit (sock_t *sock);
+
+net_err_t sock_setopt (struct _sock_t* s,  int level, int optname, const char * optval, int optlen);
 
 
 #endif

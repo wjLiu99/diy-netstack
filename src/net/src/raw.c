@@ -59,15 +59,19 @@ end:
 }
 
 
-static net_err_t raw_recvfrom (struct _sock_t *s, const void *buf, size_t len, int flags, 
-    const struct x_sockaddr *dest, x_socklen_t *dest_len, ssize_t *result_len ){
-        return NET_ERR_OK;
-    }
+static net_err_t raw_recvfrom (struct _sock_t *s,  void *buf, size_t len, int flags, 
+     struct x_sockaddr *dest, x_socklen_t *dest_len, ssize_t *result_len ){
+        return NET_ERR_WAIT;
+}
+
+
+
 sock_t *raw_create (int family, int protocol) {
 
     static const sock_ops_t raw_ops = {
         .sendto = raw_sendto,
         .recvfrom = raw_recvfrom,
+        .setopt = sock_setopt,
 
     };
     raw_t *raw = mblock_alloc(&raw_mblock, -1);
@@ -83,7 +87,19 @@ sock_t *raw_create (int family, int protocol) {
         return (sock_t *)0;
     }
 
+
+    raw->base.recv_wait = &raw->recv_wait;
+    if (sock_wait_init(raw->base.recv_wait) < 0) {
+        dbg_error(DBG_RAW, "init recv wait err");
+        goto create_failed;
+    }
+
+
     nlist_insert_last(&raw_list, &raw->base.node);
 
     return (sock_t *)raw;
+
+create_failed:
+    sock_uninit(&raw->base);
+    return (sock_t *)0;
 }

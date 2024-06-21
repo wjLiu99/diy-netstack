@@ -48,6 +48,56 @@ net_err_t socket_init (void) {
     return NET_ERR_OK;
 }
 
+net_err_t sock_wait_init (sock_wait_t *wait) {
+    wait->waiting = 0;
+    wait->err = NET_ERR_OK;
+    wait->sem = sys_sem_create(0);
+    return wait->sem == SYS_SEM_INVALID ? NET_ERR_SYS : NET_ERR_OK;
+}
+
+void sock_wait_destory (sock_wait_t *wait) {
+    if (wait->sem != SYS_SEM_INVALID) {
+        sys_sem_free(wait->sem);
+    }
+}
+
+void sock_wait_add (sock_wait_t *wait, int tmo, struct _sock_req_t *req) {
+    //wait等待结构上等待程序数量增加， 初始化请求中的等待结构让应用程序在该等待结构上等待
+    wait->waiting++;
+    req->wait = wait;
+    req->wait_tmo = tmo;
+
+}   
+net_err_t sock_wait_enter (sock_wait_t *wait, int tmo) {
+    //应用程序调用， 如果信号量被初始化了就在该信号量上等待,初始化tmo为0是一直阻塞等待，没有超时
+    if (sys_sem_wait(wait->sem, tmo) < 0) {
+        return NET_ERR_TMO;
+    }
+    return wait->err;
+}                
+
+void sock_wait_leave (sock_wait_t *wait, net_err_t err) {
+    //数据到达， 工作线程调用， 通知应用程序，等待程序减一
+    if (wait->waiting > 0) {
+        wait->waiting--;
+        sys_sem_notify(wait->sem);
+        wait->err = err;
+    }
+} 
+
+
+void sock_wakeup (sock_t *sock, int type, int err) {
+    if (type & SOCK_WAIT_CONN) {
+        sock_wait_leave(sock->conn_wait, err);
+    }
+    if (type & SOCK_WAIT_READ) {
+        sock_wait_leave(sock->recv_wait, err);
+    }
+    if (type & SOCK_WAIT_WRITE) {
+        sock_wait_leave(sock->send_wait, err);
+    }
+}
+
 net_err_t sock_init (sock_t *sock, int family, int protocol, const sock_ops_t *ops) {
     sock->family = family;
     sock->ops = ops;
@@ -60,9 +110,61 @@ net_err_t sock_init (sock_t *sock, int family, int protocol, const sock_ops_t *o
     sock->err = NET_ERR_OK;
     sock->rcv_tmo = 0;
     sock->send_tmo = 0;
+    sock->conn_wait = (sock_wait_t *)0;
+    sock->send_wait = (sock_wait_t *)0;
+    sock->recv_wait = (sock_wait_t *)0;
     nlist_node_init(&sock->node);
     return NET_ERR_OK;
 
+}
+
+net_err_t sock_uninit (sock_t *sock) {
+    if (sock->recv_wait) {
+        sock_wait_destory(sock->recv_wait);
+    }
+    if (sock->send_wait) {
+    sock_wait_destory(sock->send_wait);
+    }
+    if (sock->conn_wait) {
+    sock_wait_destory(sock->conn_wait);
+    }
+}
+
+net_err_t sock_setopt (struct _sock_t* s,  int level, int optname, const char * optval, int optlen) {
+    if (level != SOL_SOCKET) {
+        dbg_error(DBG_SOCKET, "unknown level");
+        return NET_ERR_PARAM;
+    }
+
+    switch (optname)
+    {
+    case SO_RCVTIMEO:
+
+    case SO_SNDTIMEO: {
+        if (optlen != sizeof(struct x_timeval)) {
+            dbg_error(DBG_SOCKET, "timeval err");
+            return NET_ERR_PARAM;
+        }
+        struct x_timeval *time = (struct x_timeval *)optval;
+        int time_ms = time->tv_sec * 1000 + time->tv_usec / 1000;
+        if (optname == SO_RCVTIMEO) {
+            s->rcv_tmo = time_ms;
+            return NET_ERR_OK;
+        } else if (optname == SO_SNDTIMEO) {
+            s->send_tmo = time_ms;
+            return NET_ERR_OK;
+        } else {
+            return NET_ERR_PARAM;
+        }
+
+        break;
+    }
+    
+    default:
+        break;
+    }
+
+    return NET_ERR_PARAM;
 }
 
 net_err_t sock_create_req_in (struct _func_msg_t *msg) {
@@ -117,6 +219,13 @@ net_err_t sock_sendto_req_in (struct _func_msg_t *msg) {
     }
 
     net_err_t err = sock->ops->sendto(sock, data->buf, data->len, data->flags, data->addr, *data->addr_len, &data->comp_len);
+    if (err == NET_ERR_WAIT) {
+        if (sock->send_wait) {
+            sock_wait_add(sock->send_wait, sock->send_tmo, req);
+        }
+
+    }
+
     return err;
 
 }
@@ -139,6 +248,32 @@ net_err_t sock_recvfrom_req_in (struct _func_msg_t *msg) {
     }
 
     net_err_t err = sock->ops->recvfrom(sock, data->buf, data->len, data->flags, data->addr, data->addr_len, &data->comp_len);
+    
+    if (err == NET_ERR_WAIT) {
+        if (sock->recv_wait) {
+            sock_wait_add(sock->recv_wait, sock->rcv_tmo, req);
+        }
+
+    }
     return err;
+
+}
+
+net_err_t sock_setsockopt_req_in (struct _func_msg_t *msg) {
+    sock_req_t *req = (sock_req_t *)msg->param;
+    
+    x_socket_t *s = get_socket(req->sockfd);
+    if (!s) {
+        dbg_error(DBG_SOCKET, "param err");
+        return NET_ERR_PARAM;
+    }
+    sock_t *sock = s->sock;
+    sock_opt_t *opt = (sock_opt_t *)&req->opt;
+    if (!sock->ops->setopt) {
+        dbg_error(DBG_SOCKET, "func not exist");
+        return NET_ERR_EXIST;
+    }
+
+    return sock->ops->setopt(sock, opt->level, opt->optname, opt->optval, opt->len);
 
 }

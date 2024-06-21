@@ -5,6 +5,8 @@
 
 typedef struct _raw_t {
     sock_t base;
+    //接受等待， 发送不需要等
+    sock_wait_t recv_wait;
 } raw_t;
 
 net_err_t raw_init (void);
