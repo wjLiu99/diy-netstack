@@ -71,7 +71,10 @@
         "mblock.h": "c",
         "netfwd": "c",
         "net_api.h": "c",
-        "icmpv4.h": "c"
+        "icmpv4.h": "c",
+        "*.tcc": "c",
+        "socket": "c",
+        "fstream": "c"
     },
     
     "C_Cpp.default.configurationProvider": "ms-vscode.makefile-tools"
