@@ -121,5 +121,7 @@ net_err_t sock_uninit (sock_t *sock);
 
 net_err_t sock_setopt (struct _sock_t* s,  int level, int optname, const char * optval, int optlen);
 
+void sock_wakeup (sock_t *sock, int type, int err);
+
 
 #endif

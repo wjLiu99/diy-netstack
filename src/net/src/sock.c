@@ -85,7 +85,7 @@ void sock_wait_leave (sock_wait_t *wait, net_err_t err) {
     }
 } 
 
-
+//有数据到达时调用
 void sock_wakeup (sock_t *sock, int type, int err) {
     if (type & SOCK_WAIT_CONN) {
         sock_wait_leave(sock->conn_wait, err);
@@ -128,6 +128,8 @@ net_err_t sock_uninit (sock_t *sock) {
     if (sock->conn_wait) {
     sock_wait_destory(sock->conn_wait);
     }
+
+    return NET_ERR_OK;
 }
 
 net_err_t sock_setopt (struct _sock_t* s,  int level, int optname, const char * optval, int optlen) {

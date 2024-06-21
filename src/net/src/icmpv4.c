@@ -4,6 +4,7 @@
 #include "ipv4.h"
 #include "protocol.h"
 #include "ntools.h"
+#include "raw.h"
 
 #if DBG_DISPLAY_ENABLED(DBG_ICMP)
 static void display_icmp_packet(char * title, icmpv4_pkt_t  * pkt) {
@@ -27,7 +28,7 @@ net_err_t icmpv4_init (void) {
 }
 
 static net_err_t is_pkt_ok (icmpv4_pkt_t *pkt, int size, pktbuf_t *buf) {
-    if(size <= sizeof(ipv4_hdr_t)) {
+    if(size <= sizeof(icmpv4_hdr_t)) {
         dbg_error(DBG_ICMP, "size err");
         return NET_ERR_SIZE;
     }
@@ -75,30 +76,45 @@ net_err_t icmpv4_in (ipaddr_t *src_ip, ipaddr_t *netif_ip, pktbuf_t *buf) {
 
     ipv4_pkt = (ipv4_pkt_t *)pktbuf_data(buf);
 
-    err = pktbuf_remove_header(buf, iphdr_size);
-    if (err < 0) {
-        dbg_error(DBG_ICMP, "remove ip hdr err");
-        return NET_ERR_NONE;
-    }
+    //不能在这里移除包头了，因为有可能交给raw套接字处理
+    // err = pktbuf_remove_header(buf, iphdr_size);
+    // if (err < 0) {
+    //     dbg_error(DBG_ICMP, "remove ip hdr err");
+    //     return NET_ERR_NONE;
+    // }
 
-    //校验和要重新设置数据包读写位置
+    // //校验和要重新设置数据包读写位置
+    // pktbuf_reset_acc(buf);
+    icmpv4_pkt_t *icmp_pkt = (icmpv4_pkt_t *)(pktbuf_data(buf) + iphdr_size);
     pktbuf_reset_acc(buf);
-    icmpv4_pkt_t *icmp_pkt = (icmpv4_pkt_t *)pktbuf_data(buf);
+    pktbuf_seek(buf, iphdr_size);
     
-    if (is_pkt_ok(icmp_pkt, buf->total_size, buf) != NET_ERR_OK) {
+    if (is_pkt_ok(icmp_pkt, buf->total_size - iphdr_size, buf) != NET_ERR_OK) {
         dbg_error(DBG_ICMP, "check icmp pkt err");
         return NET_ERR_NONE;
     }
     
     switch (icmp_pkt->hdr.type)
     {
-    case ICMPv4_ECHO_REQUEST:{
-        return icmpv4_echo_reply(src_ip, netif_ip, buf);
-        
-    }
-    default:
-        pktbuf_free(buf);
-        return NET_ERR_OK;
+        case ICMPv4_ECHO_REQUEST:{
+            err = pktbuf_remove_header(buf, iphdr_size);
+            if (err < 0) {
+                dbg_error(DBG_ICMP, "remove ip hdr err");
+                return NET_ERR_NONE;
+            }
+            pktbuf_reset_acc(buf);
+            return icmpv4_echo_reply(src_ip, netif_ip, buf);
+            
+        }
+
+        //交给raw模块处理
+        default:
+            err = raw_in(buf);
+            if (err < 0) {
+                dbg_error(DBG_ICMP, "raw in err");
+                return err;
+            }
+            return NET_ERR_OK;
         
     }
 

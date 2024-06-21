@@ -60,4 +60,7 @@
 #define RAW_MAX_NR              10
 
 #define SOCKET_MAX_NR       RAW_MAX_NR
+
+
+#define RAW_MAX_RECV        50
 #endif

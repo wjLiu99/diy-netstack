@@ -224,7 +224,7 @@ void timer_test(){
 
 void ping_test () {
 	ping_t ping;
-	ping_run(&ping, "192.168.133.5", 4, 64, 1000);
+	ping_run(&ping, "192.168.133.1", 4, 64, 1000);
 }
 void base_test(){
 	ping_test();

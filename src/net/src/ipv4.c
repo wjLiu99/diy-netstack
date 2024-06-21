@@ -6,6 +6,8 @@
 #include "icmpv4.h"
 #include "mblock.h"
 #include "net_cfg.h"
+#include "raw.h"
+
 static ip_frag_t frag_array[IP_FRAGS_MAX_NR];
 static mblock_t frag_mblock;
 static nlist_t frag_list;
@@ -280,27 +282,34 @@ static net_err_t ip_normal_in (netif_t *netif, pktbuf_t *buf, ipaddr_t *src_ip, 
 
     switch (pkt->ipv4_hdr.protocol)
     {
-    case NET_PROTOCOL_ICMPv4:{
-        net_err_t err = icmpv4_in(src_ip, &netif->ipaddr, buf);
-        if (err < 0) {
-            dbg_warning(DBG_IP, "icmp in failed");
-            return err;
+        case NET_PROTOCOL_ICMPv4:{
+            net_err_t err = icmpv4_in(src_ip, &netif->ipaddr, buf);
+            if (err < 0) {
+                dbg_warning(DBG_IP, "icmp in failed");
+                return err;
+            }
+            
+            break;
         }
-        
-        break;
-    }
 
-    case NET_PROTOCOL_UDP:
-        iphdr_htons(pkt);
-        icmpv4_out_unreach(src_ip, &netif->ipaddr, ICMPv4_PORT_UNREACH, buf);
-        break;
-    
-    case NET_PROTOCOL_TCP:
-        break;
-    
-    default:
-        dbg_error(DBG_IP, "unknown protocol");
-        break;
+        case NET_PROTOCOL_UDP:
+            iphdr_htons(pkt);
+            icmpv4_out_unreach(src_ip, &netif->ipaddr, ICMPv4_PORT_UNREACH, buf);
+            break;
+        
+        case NET_PROTOCOL_TCP:
+            break;
+        
+        default:{
+            dbg_warning(DBG_IP, "unknown protocol");
+            net_err_t err = raw_in(buf);
+            if (err < 0) {
+                dbg_warning(DBG_IP, "raw in err");
+                return err;
+            }
+            break;
+        }
+      
     }
     return NET_ERR_OK;
 }
