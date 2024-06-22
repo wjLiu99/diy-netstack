@@ -47,6 +47,7 @@ void ping_run (ping_t *ping, const char *dest, int count, int size, int interval
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = inet_addr(dest);
     addr.sin_port = 0;
+    connect(s, (const struct sockaddr *)&addr, sizeof(addr));
     size = size > PING_BUF_SIZE ? PING_BUF_SIZE : size;
 
     //填充数据包
@@ -65,7 +66,7 @@ void ping_run (ping_t *ping, const char *dest, int count, int size, int interval
         ping->req.icmp_hdr.checksum = checksum(&ping->req, total_size);
 
 
-        int len = sendto(s, (const char *)&ping->req, total_size, 0, (const struct sockaddr *)&addr, sizeof(addr));
+        int len = send(s, (const char *)&ping->req, total_size, 0);
         if (len < 0) {
             plat_printf("seng ping req failed\n");
             break;
@@ -78,7 +79,7 @@ void ping_run (ping_t *ping, const char *dest, int count, int size, int interval
             socklen_t rv_len = sizeof(rv_addr);
 
             //会接收到别的数据包
-            len = recvfrom(s, (char *)&ping->reply, sizeof(ping->reply), 0, (struct sockaddr *)&rv_addr, &rv_len);
+            len = recv(s, (char *)&ping->reply, sizeof(ping->reply), 0);
             if (len < 0) {
                 plat_printf("ping timeout\n");
                 break;

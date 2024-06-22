@@ -136,6 +136,23 @@ net_err_t raw_close (sock_t *sock) {
     return NET_ERR_OK;
 }
 
+net_err_t raw_connect (struct _sock_t* s, const struct x_sockaddr* addr, x_socklen_t len) {
+    
+    sock_connect(s, addr, INET_ADDRSTRLEN);
+    display_raw_list();
+    return NET_ERR_OK;
+}
+
+//不需要解决重复，数据包应该给每一个raw套接字都给一份
+net_err_t raw_bind (struct _sock_t* s, const struct x_sockaddr* addr, x_socklen_t len) { 
+    net_err_t err = sock_bind(s, addr, len);
+    display_raw_list();
+    return NET_ERR_OK;
+    
+}
+
+
+
 sock_t *raw_create (int family, int protocol) {
 
     static const sock_ops_t raw_ops = {
@@ -143,6 +160,10 @@ sock_t *raw_create (int family, int protocol) {
         .recvfrom = raw_recvfrom,
         .setopt = sock_setopt,
         .close = raw_close,
+        .send = sock_send,
+        .recv = sock_recv,
+        .connect = raw_connect,  
+        .bind = raw_bind,
 
     };
     raw_t *raw = mblock_alloc(&raw_mblock, -1);
@@ -214,6 +235,7 @@ net_err_t raw_in (pktbuf_t *buf) {
         return NET_ERR_UNREACH;
     }
 
+    //pktbuf_alloc pktbuf_copy
     if (nlist_count(&raw->recv_list) <  RAW_MAX_RECV) {
         nlist_insert_last(&raw->recv_list, &buf->node);
         sock_wakeup(&raw->base, SOCK_WAIT_READ, NET_ERR_OK);

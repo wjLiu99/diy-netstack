@@ -230,8 +230,8 @@ void ping_test () {
 }
 
 void udp_client_test(void) {
-	udp_echo_client_start("192.168.133.1", 10000);
-	// udp_echo_server_start(10000);
+	udp_echo_client_start("192.168.133.2", 10000);
+	
 }
 void base_test(){
 	udp_client_test();
@@ -242,7 +242,10 @@ int main (void) {
 	
 	netdev_init();
 	net_start();
+	ping_test();
+	udp_echo_server_start(10000);
 	base_test();
+	
 
 	
 	ping_t p;

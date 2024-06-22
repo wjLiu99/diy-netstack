@@ -20,6 +20,54 @@ int x_socket (int family, int type, int protocol) {
     return req.sockfd;
 }
 
+int x_bind(int s, const struct x_sockaddr *addr, x_socklen_t len) {
+    if ((!addr) || (len != sizeof(struct x_sockaddr)) || (s < 0)) {
+        dbg_error(DBG_SOCKET, "param err");
+        return -1;
+    }
+    if (addr->sa_family != AF_INET) {
+        dbg_error(DBG_SOCKET, "family err");
+        return -1;
+    }
+    sock_req_t req;
+    req.sockfd = s;
+    req.bind.addr = addr;
+    req.bind.addr_len = len;
+    req.wait = (sock_wait_t *)0;
+    req.wait_tmo = 0;
+    net_err_t err = exmsg_func_exec(sock_bind_req_in, &req);
+    if (err < 0) {
+        dbg_error(DBG_SOCKET, "req bind err");
+        return -1;
+    }
+    return 0;
+}
+
+int x_connect(int s, const struct x_sockaddr *addr, x_socklen_t len) {
+
+    if ((!addr) || (len != sizeof(struct x_sockaddr)) || (s < 0)) {
+        dbg_error(DBG_SOCKET, "param err");
+        return -1;
+    }
+    if (addr->sa_family != AF_INET) {
+        dbg_error(DBG_SOCKET, "family err");
+        return -1;
+    }
+    sock_req_t req;
+    req.sockfd = s;
+    req.conn.addr = addr;
+    req.conn.addr_len = len;
+    req.wait = (sock_wait_t *)0;
+    req.wait_tmo = 0;
+    net_err_t err = exmsg_func_exec(sock_connect_req_in, &req);
+    if (err < 0) {
+        dbg_error(DBG_SOCKET, "req connect err");
+        return -1;
+    }
+    return 0;
+
+}
+
 ssize_t x_sendto(int s, const void *buf, size_t len, int flags, const struct x_sockaddr *dest, x_socklen_t dest_len) {
     if (!buf || !len) {
         dbg_error(DBG_SOCKET, "sento param err");
@@ -72,6 +120,52 @@ ssize_t x_sendto(int s, const void *buf, size_t len, int flags, const struct x_s
 
 }
 
+ssize_t x_send(int s, const void* buf, size_t len, int flags) {
+     if (!buf || !len) {
+        dbg_error(DBG_SOCKET, "sento param err");
+        return -1;
+    }
+
+
+    uint8_t *start = (uint8_t *)buf;
+    ssize_t send_size = 0;
+    //循环发送
+    while (len > 0) {
+        sock_req_t req;
+        req.sockfd = s;
+        req.data.buf = start; 
+        req.data.len = len;
+        req.data.flags = flags;
+        req.data.comp_len = 0;
+        req.wait = (sock_wait_t *)0;
+        req.wait_tmo = 0;
+
+        net_err_t err = exmsg_func_exec(sock_send_req_in, &req);
+        if (err < 0) {
+            dbg_error(DBG_SOCKET, "req sendto err");
+            return -1;
+        }
+
+        if (req.wait) {
+            err = sock_wait_enter(req.wait, req.wait_tmo);
+            if (err < 0) {
+            dbg_error(DBG_SOCKET, "sock wait err");
+            return -1;
+        }
+
+        }
+            
+        len -= req.data.comp_len;
+        start += req.data.comp_len;
+        send_size += (ssize_t)req.data.comp_len;
+
+
+    }
+
+    return send_size;
+
+}
+
 //不需要将所有数据发完才返回
 ssize_t x_recvfrom(int s, void* buf, size_t len, int flags, struct x_sockaddr* src, x_socklen_t* src_len) {
     if (!buf || !len || !src) {
@@ -92,7 +186,7 @@ ssize_t x_recvfrom(int s, void* buf, size_t len, int flags, struct x_sockaddr* s
 
         net_err_t err = exmsg_func_exec(sock_recvfrom_req_in, &req);
         if (err < 0) {
-            dbg_error(DBG_SOCKET, "req sendto err");
+            dbg_error(DBG_SOCKET, "req recvfrom err");
             return -1;
         }
 
@@ -113,6 +207,47 @@ ssize_t x_recvfrom(int s, void* buf, size_t len, int flags, struct x_sockaddr* s
 
     }
     return -1;
+}
+ssize_t x_recv(int s, void* buf, size_t len, int flags) {
+        if (!buf || !len ) {
+        dbg_error(DBG_SOCKET, "recv param err");
+        return -1;
+    }
+    while (1) {
+        sock_req_t req;
+        req.sockfd = s;
+        req.data.buf = buf;
+
+        req.data.len = len;
+        req.data.flags = flags;
+        req.data.comp_len = 0;
+        req.wait = (sock_wait_t *)0;
+        req.wait_tmo = 0;
+
+        net_err_t err = exmsg_func_exec(sock_recv_req_in, &req);
+        if (err < 0) {
+            dbg_error(DBG_SOCKET, "req recv err");
+            return -1;
+        }
+
+        if (req.data.comp_len) {
+            return (ssize_t)req.data.comp_len;
+        }
+
+        if (req.wait) {
+            err = sock_wait_enter(req.wait, req.wait_tmo);
+            if (err < 0) {
+            dbg_error(DBG_SOCKET, "sock wait err");
+            return -1;
+            } 
+
+        } else {
+                break;
+            }
+
+    }
+    return -1;
+
 }
 
 int x_setsockopt(int s, int level, int optname, const char * optval, int len) {

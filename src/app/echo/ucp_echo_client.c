@@ -1,7 +1,7 @@
 
 #include <string.h>
 #include <stdio.h>
-// #include "net_api.h"
+
 #include"sys_plat.h"
 // #include <arpa/inet.h>
 #include "net_api.h"
@@ -12,7 +12,7 @@ int udp_echo_client_start(const char* ip, int port) {
     printf("Enter quit to exit\n");
 
     // 创建套接字，使用流式传输，即tcp
-    int s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    int s = socket(AF_INET, SOCK_DGRAM, 0);
     if (s < 0) {
         printf("open socket error");
         goto end;
@@ -24,6 +24,7 @@ int udp_echo_client_start(const char* ip, int port) {
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = inet_addr(ip);   // ip地址，注意大小端转换
     server_addr.sin_port = htons(port);             // 取端口号，注意大小端转换
+    connect(s, (const struct sockaddr *)&server_addr, sizeof(server_addr));
 
 
 
@@ -35,12 +36,15 @@ int udp_echo_client_start(const char* ip, int port) {
         if (strncmp(buf, "quit", 4) == 0) {
             break;
         }
+
  
         // 将数据写到服务器中，不含结束符
         // 在第一次发送前会自动绑定到本地的某个端口和地址中
         size_t total_len = strlen(buf);
 
-        ssize_t size = sendto(s, buf, total_len, 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
+        // ssize_t size = sendto(s, buf, total_len, 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
+        ssize_t size = send(s, buf, total_len, 0);
+
 
         if (size < 0) {
             printf("send error");
@@ -50,9 +54,10 @@ int udp_echo_client_start(const char* ip, int port) {
         // 读取回显结果并显示到屏幕上，不含结束符
         memset(buf, 0, sizeof(buf));
 
-        struct sockaddr_in remote_addr;
-        socklen_t addr_len;
-        size = recvfrom(s, buf, sizeof(buf), 0, (struct sockaddr*)&remote_addr, &addr_len);
+        // struct sockaddr_in remote_addr;
+        // socklen_t addr_len;
+        // size = recvfrom(s, buf, sizeof(buf), 0, (struct sockaddr*)&remote_addr, &addr_len);
+        size = recv(s, buf, sizeof(buf), 0);
 
         if (size < 0) {
             printf("send error");

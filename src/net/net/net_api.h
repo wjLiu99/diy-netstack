@@ -11,8 +11,12 @@
 #define timeval             x_timeval
 
 #define socket(family, type, protocol)              x_socket(family, type, protocol)
+#define bind(s, addr, len)                          x_bind(s, addr, len)
+#define connect(s, addr, addr_len)                  x_connect(s, addr, addr_len)
+#define send(s, buf, len, flags)                    x_send(s, buf, len, flags)
 #define sendto(s, buf, len, flags, dest, dlen)      x_sendto(s, buf, len, flags, dest, dlen)
 #define recvfrom(s, buf, len, flags, src, slen)     x_recvfrom(s, buf, len, flags, src, slen)
+#define recv(s, buf, len, flags)                    x_recv(s, buf, len, flags)
 #define setsockopt(s, level, optname, optval, len)  x_setsockopt(s, level, optname, optval, len)
 #define close(s)                                    x_close(s)
 

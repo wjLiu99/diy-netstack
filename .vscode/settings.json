@@ -74,7 +74,8 @@
         "icmpv4.h": "c",
         "*.tcc": "c",
         "socket": "c",
-        "fstream": "c"
+        "fstream": "c",
+        "raw.h": "c"
     },
     
     "C_Cpp.default.configurationProvider": "ms-vscode.makefile-tools"

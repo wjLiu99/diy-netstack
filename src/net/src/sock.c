@@ -5,6 +5,7 @@
 #include "raw.h"
 #include "socket.h"
 #include "udp.h"
+#include "ipv4.h"
 
 
 static x_socket_t socket_tbl[SOCKET_MAX_NR];
@@ -206,6 +207,57 @@ net_err_t sock_create_req_in (struct _func_msg_t *msg) {
     return NET_ERR_OK;
 }
 
+
+net_err_t sock_bind_req_in (struct _func_msg_t *msg) {
+    sock_req_t *req = (sock_req_t *)msg->param;
+    
+    x_socket_t *s = get_socket(req->sockfd);
+    if (!s) {
+        dbg_error(DBG_SOCKET, "param err");
+        return NET_ERR_PARAM;
+    }
+    sock_t *sock = s->sock;
+    sock_bind_t *bind = &req->bind;
+
+    if (!sock->ops->bind) {
+        dbg_error(DBG_SOCKET, "func not exist");
+        return NET_ERR_EXIST;
+    }
+
+    return  sock->ops->bind(sock, bind->addr, bind->addr_len);
+    //bind不需要等待
+
+}
+
+
+net_err_t sock_connect_req_in (struct _func_msg_t *msg) {
+    sock_req_t *req = (sock_req_t *)msg->param;
+    
+    x_socket_t *s = get_socket(req->sockfd);
+    if (!s) {
+        dbg_error(DBG_SOCKET, "param err");
+        return NET_ERR_PARAM;
+    }
+    sock_t *sock = s->sock;
+    sock_conn_t *conn = &req->conn;
+
+    if (!sock->ops->connect) {
+        dbg_error(DBG_SOCKET, "func not exist");
+        return NET_ERR_EXIST;
+    }
+
+    net_err_t err = sock->ops->connect(sock, conn->addr, conn->addr_len);
+    if (err == NET_ERR_WAIT) {
+        if (sock->send_wait) {
+            sock_wait_add(sock->conn_wait, sock->rcv_tmo, req);
+        }
+
+    }
+
+    return err;
+
+}
+
 net_err_t sock_sendto_req_in (struct _func_msg_t *msg) {
     sock_req_t *req = (sock_req_t *)msg->param;
     
@@ -234,6 +286,35 @@ net_err_t sock_sendto_req_in (struct _func_msg_t *msg) {
 
 }
 
+net_err_t sock_send_req_in (struct _func_msg_t *msg) {
+    sock_req_t *req = (sock_req_t *)msg->param;
+    
+    x_socket_t *s = get_socket(req->sockfd);
+    if (!s) {
+        dbg_error(DBG_SOCKET, "param err");
+        return NET_ERR_PARAM;
+    }
+    sock_t *sock = s->sock;
+    sock_data_t *data = &req->data;
+
+    if (!sock->ops->send) {
+        dbg_error(DBG_SOCKET, "func not exist");
+        return NET_ERR_EXIST;
+    }
+
+    net_err_t err = sock->ops->send(sock, data->buf, data->len, data->flags,  &data->comp_len);
+    if (err == NET_ERR_WAIT) {
+        if (sock->send_wait) {
+            sock_wait_add(sock->send_wait, sock->send_tmo, req);
+        }
+
+    }
+
+    return err;
+
+}
+
+
 net_err_t sock_recvfrom_req_in (struct _func_msg_t *msg) {
 
     sock_req_t *req = (sock_req_t *)msg->param;
@@ -252,6 +333,36 @@ net_err_t sock_recvfrom_req_in (struct _func_msg_t *msg) {
     }
 
     net_err_t err = sock->ops->recvfrom(sock, data->buf, data->len, data->flags, data->addr, data->addr_len, &data->comp_len);
+    
+    if (err == NET_ERR_WAIT) {
+        if (sock->recv_wait) {
+            sock_wait_add(sock->recv_wait, sock->rcv_tmo, req);
+        }
+
+    }
+    return err;
+
+}
+
+
+net_err_t sock_recv_req_in (struct _func_msg_t *msg) {
+
+    sock_req_t *req = (sock_req_t *)msg->param;
+    
+    x_socket_t *s = get_socket(req->sockfd);
+    if (!s) {
+        dbg_error(DBG_SOCKET, "param err");
+        return NET_ERR_PARAM;
+    }
+    sock_t *sock = s->sock;
+    sock_data_t *data = &req->data;
+
+    if (!sock->ops->recv) {
+        dbg_error(DBG_SOCKET, "func not exist");
+        return NET_ERR_EXIST;
+    }
+
+    net_err_t err = sock->ops->recv(sock, data->buf, data->len, data->flags, &data->comp_len);
     
     if (err == NET_ERR_WAIT) {
         if (sock->recv_wait) {
@@ -300,4 +411,45 @@ net_err_t sock_close_req_in (struct _func_msg_t *msg) {
     net_err_t err = sock->ops->close(sock);
     
     return err;
+}
+
+net_err_t sock_connect (struct _sock_t* s, const struct x_sockaddr* addr, x_socklen_t len) {
+    struct x_sockaddr_in *remote = (struct x_sockaddr_in *)addr;
+    ipaddr_from_buf(&s->remote_ip, remote->sin_addr.addr_array);
+    s->remote_port = x_ntohs(remote->sin_port);
+    return NET_ERR_OK;
+
+}
+
+net_err_t sock_bind (struct _sock_t* s, const struct x_sockaddr* addr, x_socklen_t len) {
+    ipaddr_t local_ip;
+    struct x_sockaddr_in *local = (struct x_sockaddr_in *)addr;
+    ipaddr_from_buf(&local_ip, local->sin_addr.addr_array);
+    //查看路由表，看是否是本地真实的ip地址
+    if (!ipaddr_is_any(&local_ip)) {
+        rentry_t *rt = rt_find(&local_ip);
+        if (!rt || (!ipaddr_is_equal(&rt->netif->ipaddr, &local_ip))) {
+            dbg_error(DBG_SOCKET, "addr err");
+            return NET_ERR_PARAM;
+        }
+    }
+    ipaddr_copy(&s->local_ip, &local_ip);
+    s->local_port = x_ntohs(local->sin_port);
+    return NET_ERR_OK;
+}
+
+net_err_t sock_send (struct _sock_t * s, const void* buf, size_t len, int flags, ssize_t * result_len) {
+    struct x_sockaddr_in dest;
+    dest.sin_family = s->family;
+    dest.sin_port = x_htons(s->remote_port);
+    ipaddr_to_buf(&s->remote_ip, dest.sin_addr.addr_array);
+    return s->ops->sendto(s, buf, len, flags, (const struct x_sockaddr *)&dest, sizeof(dest), result_len);
+
+}
+
+net_err_t sock_recv (struct _sock_t * s, void* buf, size_t len, int flags, ssize_t * result_len) {
+    //没有使用的地址结构
+    struct x_sockaddr src;
+    x_socklen_t addr_len;
+    return s->ops->recvfrom(s, buf, len, flags, &src, &addr_len, result_len);
 }

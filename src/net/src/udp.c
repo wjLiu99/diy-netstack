@@ -78,6 +78,13 @@ static net_err_t alloc_port (sock_t *sock) {
     return NET_ERR_NONE;
 }
 
+net_err_t udp_connect (struct _sock_t* s, const struct x_sockaddr* addr, x_socklen_t len) {
+    
+    sock_connect(s, addr, INET_ADDRSTRLEN);
+    display_udp_list();
+    return NET_ERR_OK;
+}
+
 
 static net_err_t udp_sendto (struct _sock_t *s, const void *buf, size_t len, int flags, 
     const struct x_sockaddr *dest, x_socklen_t dest_len, ssize_t *result_len ) {
@@ -172,12 +179,72 @@ static net_err_t udp_recvfrom (struct _sock_t *s,  void *buf, size_t len, int fl
 
 }
 
+//端口相同，IP不同也可以
+int port_is_used(uint16_t port, ipaddr_t *ip) {
+    nlist_node_t *node;
+    nlist_for_each(node, &udp_list) {
+        sock_t *sock = nlist_entry(node, sock_t, node);
+        if (port == sock->local_port){
+            if (ipaddr_is_equal(&sock->local_ip, ip)) {
+                 return 1;
+            }
+           
+        }
+    }
+    return 0;
+}
+net_err_t udp_bind (struct _sock_t* s, const struct x_sockaddr* addr, x_socklen_t len) {
+    const struct x_sockaddr_in *addr_in = (const struct x_sockaddr_in *)addr;
+    if (s->local_port != 0) { //ip可能为空不检查
+        dbg_error(DBG_UDP, "already binded");
+        return NET_ERR_NONE;
+
+    }
+
+    int port = x_ntohs(addr_in->sin_port);
+
+  
+    ipaddr_t local_ip;
+    ipaddr_from_buf(&local_ip, (uint8_t *)addr_in->sin_addr.addr_array);
+    if (port_is_used(port, &local_ip)) {
+        dbg_error(DBG_UDP, "port is used");
+        return NET_ERR_NONE;
+    }
+    sock_bind(s, addr, len);
+    display_udp_list();
+    return NET_ERR_OK;
+    
+
+}
+
+
+net_err_t udp_close (sock_t *sock) {
+    udp_t *udp = (udp_t *)sock;
+    nlist_remove(&udp_list, &sock->node);
+
+    nlist_node_t *node;
+    while ((node = nlist_remove_first(&udp->recv_list))) {
+        pktbuf_t *buf = nlist_entry(node, pktbuf_t, node);
+        pktbuf_free(buf);
+    }
+    sock_uninit(sock);
+    mblock_free(&udp_mblock, udp);
+    display_udp_list();
+    return NET_ERR_OK;
+}
+
+
 sock_t *udp_create (int family, int protocol) {
 
     static const sock_ops_t udp_ops = {
         .setopt = sock_setopt,
         .sendto = udp_sendto,
         .recvfrom = udp_recvfrom,
+        .close = udp_close,
+        .connect = udp_connect,
+        .send = sock_send,
+        .recv = sock_recv,
+        .bind = udp_bind,
 
     };
     udp_t *udp = mblock_alloc(&udp_mblock, -1);
@@ -203,6 +270,7 @@ sock_t *udp_create (int family, int protocol) {
 
 
     nlist_insert_last(&udp_list, &udp->base.node);
+    display_udp_list();
 
 
     return (sock_t *)udp;
@@ -330,7 +398,7 @@ net_err_t udp_in (pktbuf_t *buf, ipaddr_t *src, ipaddr_t *dest) {
 
 
 
-    pktbuf_remove_header(buf, sizeof(udp_hdr_t) - sizeof(udp_from_t));
+    pktbuf_remove_header(buf, (int)(sizeof(udp_hdr_t) - sizeof(udp_from_t)));
     udp_from_t *from = (udp_from_t *)pktbuf_data(buf);
     ipaddr_copy(&from->from, src);
     from->port = src_port;
