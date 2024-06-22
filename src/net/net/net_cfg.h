@@ -17,7 +17,8 @@
 #define DBG_ICMP                DBG_LEVEL_ERROR
 #define DBG_SOCKET              DBG_LEVEL_ERROR
 #define DBG_RAW                 DBG_LEVEL_ERROR
-#define DBG_UDP                 DBG_LEVEL_INFO
+#define DBG_UDP                 DBG_LEVEL_ERROR
+#define DBG_TCP                 DBG_LEVEL_INFO
 
  
 
@@ -60,8 +61,9 @@
 
 #define RAW_MAX_NR              10
 #define UDP_MAX_NR              10
+#define TCP_MAX_NR              10
 
-#define SOCKET_MAX_NR       (RAW_MAX_NR + UDP_MAX_NR)
+#define SOCKET_MAX_NR       (RAW_MAX_NR + UDP_MAX_NR + TCP_MAX_NR)
 
 
 #define RAW_MAX_RECV        50

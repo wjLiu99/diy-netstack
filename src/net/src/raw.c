@@ -68,7 +68,7 @@ static net_err_t raw_sendto (struct _sock_t *s, const void *buf, size_t len, int
     }
     //不能直接传网卡默认地址
     // err = ipv4_out(s->protocol, &dest_ip, &netif_get_default()->ipaddr, pktbuf);
-    err = ipv4_out(s->protocol, &dest_ip, &s->remote_ip, pktbuf);
+    err = ipv4_out(s->protocol, &dest_ip, &s->local_ip, pktbuf);
 
     if (err < 0) {
         dbg_error(DBG_RAW, "send err");
@@ -208,7 +208,7 @@ static raw_t * raw_find(ipaddr_t *src, ipaddr_t *dest, int protocol) {
             continue;
         }
         //如果套接字没有绑定地址，远程地址可能为空，不为空才比较
-        if (!ipaddr_is_any(&raw->base.remote_ip) && ipaddr_is_equal(&raw->base.remote_ip, src)) {
+        if (!ipaddr_is_any(&raw->base.remote_ip) && !ipaddr_is_equal(&raw->base.remote_ip, src)) {
             continue;
         }
 

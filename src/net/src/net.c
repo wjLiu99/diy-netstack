@@ -15,6 +15,7 @@
 #include "sock.h"
 #include "raw.h"
 #include "udp.h"
+#include "tcp.h"
 
 
 net_err_t net_init(void){
@@ -33,6 +34,7 @@ net_err_t net_init(void){
     socket_init();
     raw_init();
     udp_init();
+    tcp_init();
     //要先初始化路由表
     loop_init();
 
