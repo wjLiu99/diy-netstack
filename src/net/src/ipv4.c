@@ -7,6 +7,7 @@
 #include "mblock.h"
 #include "net_cfg.h"
 #include "raw.h"
+#include "udp.h"
 
 static ip_frag_t frag_array[IP_FRAGS_MAX_NR];
 static mblock_t frag_mblock;
@@ -369,10 +370,22 @@ static net_err_t ip_normal_in (netif_t *netif, pktbuf_t *buf, ipaddr_t *src_ip, 
             break;
         }
 
-        case NET_PROTOCOL_UDP:
-            iphdr_htons(pkt);
-            icmpv4_out_unreach(src_ip, &netif->ipaddr, ICMPv4_PORT_UNREACH, buf);
-            break;
+        case NET_PROTOCOL_UDP:{
+            net_err_t err = udp_in(buf, src_ip, dest_ip);
+            if (err < 0) {
+                dbg_warning(DBG_IP, "udp in err");
+                if (err == NET_ERR_UNREACH) {
+                    iphdr_htons(pkt);
+                    icmpv4_out_unreach(src_ip, &netif->ipaddr, ICMPv4_PORT_UNREACH, buf);
+                }
+                return err;
+                
+            }
+            //不能返回错误，数据包有可能挂载到套接字的接收队列中
+            return NET_ERR_OK;
+        }
+        
+
         
         case NET_PROTOCOL_TCP:
             break;

@@ -65,6 +65,7 @@
 
 
 #define RAW_MAX_RECV        50
+#define UDP_MAX_RECV        50
 
 #define IP_ROUTE_NR         20
 

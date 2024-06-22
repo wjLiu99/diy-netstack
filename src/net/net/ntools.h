@@ -31,5 +31,5 @@ net_err_t tools_init(void);
 //16位校验和 presum累加 comp取反
 uint16_t checksum16 (void *buf, uint16_t len, uint32_t pre_sum, int complement);
 
-
+uint16_t checksum_peso (pktbuf_t *buf, ipaddr_t *dest, ipaddr_t *src, uint8_t protocol);
 #endif
