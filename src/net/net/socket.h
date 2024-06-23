@@ -12,10 +12,10 @@
 
 #undef SOCK_RAW
 #define SOCK_RAW           1              // 原始数据报
-// #undef SOCK_DGRAM
-// #define SOCK_DGRAM              2               // 数据报式套接字
-// #undef SOCK_STREAM
-// #define SOCK_STREAM             3               // 流式套接字
+#undef SOCK_DGRAM
+#define SOCK_DGRAM              2               // 数据报式套接字
+#undef SOCK_STREAM
+#define SOCK_STREAM             3               // 流式套接字
 
 #undef IPPROTO_ICMP
 #define IPPROTO_ICMP            1               // ICMP协议

@@ -8,6 +8,7 @@
 #include "net_cfg.h"
 #include "raw.h"
 #include "udp.h"
+#include "tcp_in.h"
 
 static ip_frag_t frag_array[IP_FRAGS_MAX_NR];
 static mblock_t frag_mblock;
@@ -387,8 +388,17 @@ static net_err_t ip_normal_in (netif_t *netif, pktbuf_t *buf, ipaddr_t *src_ip, 
         
 
         
-        case NET_PROTOCOL_TCP:
-            break;
+        case NET_PROTOCOL_TCP:{
+            //tcp模块不需要ip包头
+            pktbuf_remove_header(buf, ipv4_hdr_size(pkt));
+            net_err_t err = tcp_in(buf, src_ip, dest_ip);
+            if (err < 0) {
+                dbg_warning(DBG_IP, "tcp in err");
+                return err;
+            }
+            return NET_ERR_OK;
+        }
+        
         
         default:{
             dbg_warning(DBG_IP, "unknown protocol");

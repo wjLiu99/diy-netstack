@@ -14,6 +14,8 @@
 #include "ping/ping.h"
 #include "echo/udp_echo_client.h"
 #include "echo/udp_echo_server.h"
+#include "echo/tcp_echo_client.h"
+#include "echo/tcp_echo_server.h"
 pcap_data_t netdev0_data = {.ip = netdev0_phy_ip, .hwaddr = netdev0_hwaddr};
 
 net_err_t netdev_init(void){
@@ -230,11 +232,16 @@ void ping_test () {
 }
 
 void udp_client_test(void) {
+	udp_echo_server_start(10000);
 	udp_echo_client_start("192.168.133.2", 10000);
 	
 }
+void tcp_test (void) {
+	tcp_echo_client_start(friend0_ip, 10000);
+}
 void base_test(){
-	udp_client_test();
+	// tcp_test();
+	
 }
 int main (void) {
 	
@@ -243,7 +250,7 @@ int main (void) {
 	netdev_init();
 	net_start();
 	ping_test();
-	udp_echo_server_start(10000);
+	
 	base_test();
 	
 

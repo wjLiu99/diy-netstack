@@ -1,7 +1,7 @@
 #include"tcp_echo_client.h"
-#include<arpa/inet.h>
+// #include<arpa/inet.h>
 #include"sys_plat.h"
-
+#include "net_api.h"
 int tcp_echo_client_start(const char* ip, int port){
     plat_printf("tcp echo client, ip: %s, port: %d\n",ip, port);
 
@@ -20,6 +20,14 @@ int tcp_echo_client_start(const char* ip, int port){
         plat_printf("connect error");
         goto end;
     }
+
+#if 1
+    char sbuf[128];
+    fgets(sbuf, sizeof(sbuf), stdin);
+    close(s);
+    return 0;
+
+#endif
 
     char buf[128];
     plat_printf(">>");
