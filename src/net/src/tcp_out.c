@@ -78,6 +78,7 @@ net_err_t tcp_transmit (tcp_t *tcp) {
     out->flags = 0;
     out->f_syn = tcp->flags.syn_out;
     out->f_ack = tcp->flags.irs_valid; //是否已经收到对方syn
+    out->f_fin = tcp->flags.fin_out; // 是否已经收到对方的fin为，并且调用close函数发送fin报文
     out->win = 1024;
     out->urgptr = 0;
     tcp_set_hdr_size(out, sizeof(tcp_hdr_t));
@@ -106,6 +107,10 @@ net_err_t tcp_ack_process (tcp_t *tcp, tcp_seg_t *seg) {
     if (tcp->flags.syn_out) {
         tcp->send.una++;
         tcp->flags.syn_out = 0;
+    }
+    //fin报文已发出，且对方确认接收清空该标志位
+    if (tcp->flags.fin_out && (hdr->ack - tcp->send.una > 0)) {
+        tcp->flags.fin_out = 0;
     }
 
     return NET_ERR_OK;
@@ -140,6 +145,13 @@ net_err_t tcp_send_ack (tcp_t *tcp, tcp_seg_t *seg) {
         return err;
     }
 
+    return NET_ERR_OK;
+
+}
+
+net_err_t tcp_send_fin (tcp_t *tcp) {
+    tcp->flags.fin_out = 1;
+    tcp_transmit(tcp);
     return NET_ERR_OK;
 
 }

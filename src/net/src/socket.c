@@ -295,11 +295,11 @@ int x_close(int s) {
 
 
     if (req.wait) {
-            err = sock_wait_enter(req.wait, req.wait_tmo);
-            if (err < 0) {
-            dbg_error(DBG_SOCKET, "sock wait err");
-            return -1;
-            }
+        err = sock_wait_enter(req.wait, req.wait_tmo);
+        if (err < 0) {
+        dbg_error(DBG_SOCKET, "sock wait err");
+        return -1;
+        }
     } 
     return 0;
 }

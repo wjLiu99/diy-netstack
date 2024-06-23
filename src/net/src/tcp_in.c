@@ -84,3 +84,26 @@ net_err_t tcp_in (pktbuf_t *buf, ipaddr_t *src, ipaddr_t *dest) {
 
 
 }
+
+net_err_t tcp_data_in (tcp_t *tcp, tcp_seg_t *seg) {
+    int wakeup = 0;
+    tcp_hdr_t *hdr = seg->hdr;
+    if (hdr->f_fin) {
+        tcp->recv.nxt++;
+        wakeup++;
+    }
+
+
+    if (wakeup) {
+        if (hdr->f_fin) {
+            //对端关闭，全部唤醒，不支持半关闭
+            sock_wakeup(&tcp->base, SOCK_WAIT_ALL, NET_ERR_CLOSE);
+        } else {
+            //有数据到达，唤醒读进程
+            sock_wakeup(&tcp->base, SOCK_WAIT_READ, NET_ERR_OK);
+        }
+        tcp_send_ack(tcp, seg);
+    }
+
+    return NET_ERR_OK;
+}

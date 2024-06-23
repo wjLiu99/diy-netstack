@@ -111,6 +111,7 @@ typedef struct _tcp_t {
     //标志位，记录数据发送情况，处理重传
     struct {
         uint32_t syn_out : 1;   //syn是否发送
+        uint32_t fin_out : 1;   //fin是否发送
         uint32_t irs_valid : 1; //是否收到对方syn
     } flags;
 

@@ -411,6 +411,13 @@ net_err_t sock_close_req_in (struct _func_msg_t *msg) {
     }
     socket_free(s);
     net_err_t err = sock->ops->close(sock);
+    if (err == NET_ERR_WAIT) {
+        if (sock->conn_wait) {
+            //等对方的ack响应
+            //加入那个等待结构都行，最后调用abort通知所有的等待结构
+            sock_wait_add(sock->conn_wait, sock->rcv_tmo, req);
+        }
+    }
     
     return err;
 }

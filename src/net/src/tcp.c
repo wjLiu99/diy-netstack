@@ -149,10 +149,50 @@ net_err_t tcp_connect (struct _sock_t* s, const struct x_sockaddr* addr, x_sockl
     return NET_ERR_WAIT;
 }
 
+//tcp释放
+void tcp_free (tcp_t *tcp) {
+    sock_wait_destory(&tcp->conn.wait);
+    sock_wait_destory(&tcp->recv.wait);
+    sock_wait_destory(&tcp->send.wait);
+    tcp->state = TCP_STATE_FREE;
+    nlist_remove(&tcp_list, &tcp->base.node);
+    mblock_free(&tcp_mblock, tcp);
 
+}
 
 net_err_t tcp_close (sock_t *sock) {
+    tcp_t *tcp = (tcp_t *)sock;
+    switch (tcp->state)
+    {
+    case TCP_STATE_CLOSED:
+        dbg_error(DBG_TCP, "tcp already closed");
+        tcp_free(tcp);
+        return NET_ERR_OK;
+    
+    case TCP_STATE_SYN_SENT:
+    case TCP_STATE_SYN_RECVD:
+        tcp_abort(tcp, NET_ERR_CLOSE);
+        tcp_free(tcp);
+        return NET_ERR_OK;
 
+
+    case TCP_STATE_CLOSE_WAIT:
+        tcp_send_fin(tcp);
+        tcp_set_state(tcp, TCP_STATE_LAST_ACK);
+        //需要等对方ack，不能直接返回，调用close后要等对方ack
+        return NET_ERR_WAIT;
+    case TCP_STATE_ESTABLISHED:
+        //连接状态调用close，主动发送fin报文，切换状态等待对方响应
+        tcp_send_fin(tcp);
+        tcp_set_state(tcp, TCP_STATE_FIN_WAIT_1);
+
+        return NET_ERR_WAIT;
+    
+    default:
+        dbg_error(DBG_TCP, "tcp state err");
+        return NET_ERR_STATE;
+    
+    }
     return NET_ERR_OK;
 }
 
