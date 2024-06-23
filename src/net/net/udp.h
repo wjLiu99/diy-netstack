@@ -23,8 +23,7 @@ typedef struct _udp_pkt_t {
 } udp_pkt_t;
 #pragma pack()
 
-#define NET_PORT_DYN_START      1024
-#define NET_PORT_DYN_END        65535
+
 typedef struct _udp_t {
     sock_t base;
 

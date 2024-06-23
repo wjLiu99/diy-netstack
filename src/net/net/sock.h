@@ -13,7 +13,7 @@ struct _sock_req_t;
 #define SOCK_WAIT_READ      (1 << 0)
 #define SOCK_WAIT_WRITE     (1 << 1)
 #define SOCK_WAIT_CONN      (1 << 2)
-#define SOCK_WAIT_ALL       (SOCK_WAIT_READ | SOCK_WAIT_WRITE | SOCK_WAIT_ALL)
+#define SOCK_WAIT_ALL       (SOCK_WAIT_READ | SOCK_WAIT_WRITE | SOCK_WAIT_CONN)
 
 //等待结构
 typedef struct _sock_wait_t {

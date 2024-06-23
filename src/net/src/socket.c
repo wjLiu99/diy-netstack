@@ -64,6 +64,14 @@ int x_connect(int s, const struct x_sockaddr *addr, x_socklen_t len) {
         dbg_error(DBG_SOCKET, "req connect err");
         return -1;
     }
+    //tcp连接需要等待，udp不用
+    if (req.wait) {
+        err = sock_wait_enter(req.wait, req.wait_tmo);
+        if (err < 0) {
+        dbg_error(DBG_SOCKET, "sock wait err");
+        return -1;
+        }
+    }
     return 0;
 
 }
@@ -105,7 +113,7 @@ ssize_t x_sendto(int s, const void *buf, size_t len, int flags, const struct x_s
             if (err < 0) {
             dbg_error(DBG_SOCKET, "sock wait err");
             return -1;
-        }
+            }
 
         }
             

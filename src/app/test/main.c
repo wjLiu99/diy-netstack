@@ -240,7 +240,7 @@ void tcp_test (void) {
 	tcp_echo_client_start(friend0_ip, 10000);
 }
 void base_test(){
-	// tcp_test();
+	tcp_test();
 	
 }
 int main (void) {

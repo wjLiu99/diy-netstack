@@ -70,5 +70,6 @@
 #define UDP_MAX_RECV        50
 
 #define IP_ROUTE_NR         20
-
+#define NET_PORT_DYN_START      1024
+#define NET_PORT_DYN_END        65535
 #endif

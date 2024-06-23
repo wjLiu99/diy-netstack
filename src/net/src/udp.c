@@ -64,7 +64,7 @@ static int is_port_used (int port) {
 
 
 static net_err_t alloc_port (sock_t *sock) {
-    static int search_index = NET_PORT_DYN_START-1;
+    static int search_index = NET_PORT_DYN_START - 1;
     for (int i = NET_PORT_DYN_START; i < NET_PORT_DYN_END; i++) {
         if (++search_index > NET_PORT_DYN_END) {
             search_index = NET_PORT_DYN_START;

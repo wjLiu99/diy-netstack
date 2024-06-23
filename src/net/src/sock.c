@@ -250,7 +250,7 @@ net_err_t sock_connect_req_in (struct _func_msg_t *msg) {
 
     net_err_t err = sock->ops->connect(sock, conn->addr, conn->addr_len);
     if (err == NET_ERR_WAIT) {
-        if (sock->send_wait) {
+        if (sock->conn_wait) {
             sock_wait_add(sock->conn_wait, sock->rcv_tmo, req);
         }
 

@@ -2,6 +2,7 @@
 #define TCP_H
 
 #include "sock.h"
+#include "net_cfg.h"
 
 
 #pragma pack(1)
@@ -54,25 +55,85 @@ typedef struct _tcp_pkt_t {
 
 
 #pragma pack()
+//tcp状态机
+typedef enum _tcp_state_t {
+    TCP_STATE_FREE = 0,             // 空闲状态，非标准状态的一部分
+    TCP_STATE_CLOSED,
+    TCP_STATE_LISTEN,
+    TCP_STATE_SYN_SENT,
+    TCP_STATE_SYN_RECVD,
+    TCP_STATE_ESTABLISHED,
+    TCP_STATE_FIN_WAIT_1,
+    TCP_STATE_FIN_WAIT_2,
+    TCP_STATE_CLOSING,
+    TCP_STATE_TIME_WAIT,
+    TCP_STATE_CLOSE_WAIT,
+    TCP_STATE_LAST_ACK,
 
-//tcp段，把收到的tcp数据包信息保存起来
+    TCP_STATE_MAX,
+}tcp_state_t;
+
+//tcp报文段结构，把收到的tcp数据包信息保存起来
 typedef struct _tcp_seg_t {
-    ipaddr_t local_ip;
-    ipaddr_t remote_ip;
-    tcp_hdr_t *hdr;
-    pktbuf_t *buf;
-    uint32_t data_len;
-    uint32_t seq;
-    uint32_t seq_len;
+    ipaddr_t local_ip;      //本地ip
+    ipaddr_t remote_ip;     //远端ip    
+    tcp_hdr_t *hdr;         //tcp数据包
+    pktbuf_t *buf;          
+    uint32_t data_len;      //数据长度
+    uint32_t seq;           //数据包起始序号
+    uint32_t seq_len;       //数据包长度
 } tcp_seg_t;
+
+//tcp连接控制块
 typedef struct _tcp_t {
     sock_t base;
+    tcp_state_t state;      // TCP状态
+    //连接相关
+    struct {
+        sock_wait_t wait;
+    } conn;
+
+    //发送相关
+    struct {
+        uint32_t una;   //未确认的第一个字节
+        uint32_t nxt;   //下一个待发送的字节
+        uint32_t iss;   //初始序号
+        sock_wait_t wait;
+    } send;
+
+    //接收相关
+    struct {
+        uint32_t nxt;   //期望收到的下一个字节
+        uint32_t iss;   //初始序号
+        sock_wait_t wait;
+    } recv;
+
+    //标志位，记录数据发送情况，处理重传
+    struct {
+        uint32_t syn_out : 1;   //syn是否发送
+        uint32_t irs_valid : 1; //是否收到对方syn
+    } flags;
 
 } tcp_t;
 
 net_err_t tcp_init (void);
 
 sock_t *tcp_create (int family, int protocol);
+
+tcp_t * tcp_find (ipaddr_t *local_ip, uint16_t local_port, ipaddr_t *remote_ip, uint16_t remote_port);
+
+//终止tcp连接
+net_err_t tcp_abort(tcp_t *tcp, net_err_t err);
+
+#if DBG_DISPLAY_ENABLED(DBG_TCP)       
+void tcp_show_info (char * msg, tcp_t * tcp);
+void tcp_display_pkt (char * msg, tcp_hdr_t * tcp_hdr, pktbuf_t * buf);
+void tcp_show_list (void);
+#else
+#define tcp_show_info(msg, tcp)
+#define tcp_display_pkt(msg, hdr, buf)
+#define tcp_show_list()
+#endif
 
 
 static inline int tcp_hdr_size (tcp_hdr_t *hdr) {

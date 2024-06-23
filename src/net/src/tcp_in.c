@@ -2,6 +2,7 @@
 #include "ntools.h"
 #include "protocol.h"
 #include "tcp_out.h"
+#include "tcp_stat.h"
 
 void tcp_set_init(tcp_seg_t *seg, pktbuf_t *buf, ipaddr_t *local, ipaddr_t *remote) {
     seg->buf = buf;
@@ -15,6 +16,20 @@ void tcp_set_init(tcp_seg_t *seg, pktbuf_t *buf, ipaddr_t *local, ipaddr_t *remo
 }
 
 net_err_t tcp_in (pktbuf_t *buf, ipaddr_t *src, ipaddr_t *dest) {
+    //根据不同状态做不同处理，函数调用表
+    static const tcp_proc_t tcp_state_proc[] = {
+        [TCP_STATE_CLOSED] = tcp_closed_in,
+        [TCP_STATE_SYN_SENT] = tcp_syn_sent_in,
+        [TCP_STATE_ESTABLISHED] = tcp_established_in,
+        [TCP_STATE_FIN_WAIT_1] = tcp_fin_wait_1_in,
+        [TCP_STATE_FIN_WAIT_2] = tcp_fin_wait_2_in,
+        [TCP_STATE_CLOSING] = tcp_closing_in,
+        [TCP_STATE_TIME_WAIT] = tcp_time_wait_in,
+        [TCP_STATE_CLOSE_WAIT] = tcp_close_wait_in,
+        [TCP_STATE_LAST_ACK] = tcp_last_ack_in,      
+        [TCP_STATE_LISTEN] = tcp_listen_in,
+        [TCP_STATE_SYN_RECVD] = tcp_syn_recvd_in,
+    };
     tcp_hdr_t *tcp_hdr = (tcp_hdr_t *)pktbuf_data(buf);
 
     if (tcp_hdr->checksum) {
@@ -46,10 +61,24 @@ net_err_t tcp_in (pktbuf_t *buf, ipaddr_t *src, ipaddr_t *dest) {
     tcp_hdr->ack = x_ntohl(tcp_hdr->ack);
     tcp_hdr->urgptr = x_ntohs(tcp_hdr->urgptr);
     tcp_hdr->win = x_ntohs(tcp_hdr->win);
+    tcp_display_pkt("tcp in", tcp_hdr, buf);
     tcp_seg_t seg;
     tcp_set_init(&seg, buf, dest, src);
 
-    tcp_send_reset(&seg);
+    //查找合适的tcp控制块处理
+    tcp_t *tcp = tcp_find(dest, tcp_hdr->dport, src, tcp_hdr->sport);
+    if (!tcp) {
+        dbg_error(DBG_TCP, "no tcp found");
+        //没有找到合适的tcp处理则发送reset分节
+        tcp_send_reset(&seg);
+        tcp_show_list();
+        return NET_ERR_NONE;
+    }
+    //查找函数调用表
+    tcp_state_proc[tcp->state](tcp, &seg);
+
+    tcp_show_info("after tcp in", tcp);
+    // tcp_show_list();
 
     return NET_ERR_OK;
 
