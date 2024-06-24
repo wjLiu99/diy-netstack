@@ -107,6 +107,7 @@ static net_err_t tcp_init_connect(tcp_t *tcp){
     } else {
         tcp->mss = rt->netif->mtu - sizeof(ipv4_hdr_t) - sizeof(tcp_hdr_t);
     }
+
     tcp->send.iss = tcp_get_iss();
     tcp->send.una = tcp->send.nxt = tcp->send.iss;
 
@@ -266,13 +267,61 @@ static net_err_t tcp_send (struct _sock_t * s, const void* buf, size_t len, int 
     
 }
 
+
+
+static net_err_t tcp_recv (struct _sock_t * s, void* buf, size_t len, int flags, ssize_t * result_len) {
+    tcp_t *tcp = (tcp_t *)s;
+    int wait = NET_ERR_WAIT;
+
+    switch (tcp->state)
+    {
+    //某些状态不能进行数据接收，lastack主动调用close，关闭接收
+    case TCP_STATE_LAST_ACK:
+    case TCP_STATE_CLOSED:
+    case TCP_STATE_TIME_WAIT:
+        dbg_error(DBG_TCP, "tcp closed");
+        return NET_ERR_CLOSE;
+    //可以读取，没数据不需要等待，因为对方已经发送fin标志位，接收缓冲区已经关闭
+    case TCP_STATE_CLOSE_WAIT:
+    case TCP_STATE_CLOSING:
+        wait = NET_ERR_OK;
+        break;
+
+    //允许接收
+    case TCP_STATE_ESTABLISHED:
+    //主动关闭，可以接收
+    case TCP_STATE_FIN_WAIT_1:
+    case TCP_STATE_FIN_WAIT_2:
+
+        break;
+
+    //未建立连接
+    case TCP_STATE_LISTEN:
+    case TCP_STATE_SYN_RECVD:
+    case TCP_STATE_SYN_SENT:
+        dbg_error(DBG_TCP, "tcp state err");
+        return NET_ERR_STATE;
+    default:
+        dbg_error(DBG_TCP, "unknown state");
+        return NET_ERR_STATE;
+    }
+    *result_len = 0;
+    int cnt = tcp_buf_read_recv(&tcp->recv.buf, buf, (int)len);
+    if (cnt > 0) {
+        *result_len = cnt;
+        return NET_ERR_OK;
+    }
+
+    return wait; 
+}
+
 static tcp_t *tcp_alloc (int wait, int family, int protocol) {
         static const sock_ops_t tcp_ops = {
         .connect = tcp_connect,
         .close = tcp_close,
         .setopt = sock_setopt,
         .send = tcp_send,
-        .recv = sock_recv,
+        .recv = tcp_recv,
     };
     tcp_t *tcp = tcp_get_free(wait);
     if (!tcp) {
@@ -283,6 +332,7 @@ static tcp_t *tcp_alloc (int wait, int family, int protocol) {
     tcp->state = TCP_STATE_CLOSED;
     //静态分配， 可以在前面使用动态分配函数分配一片空间
     tcp_buf_init(&tcp->send.buf, tcp->send.data, TCP_SBUF_SIZE);
+    tcp_buf_init(&tcp->recv.buf, tcp->recv.data, TCP_RBUF_SIZE);
     
     net_err_t err = sock_init(&tcp->base, family, protocol, &tcp_ops);
     if (err < 0) {
@@ -401,4 +451,8 @@ void tcp_read_option (tcp_t *tcp, tcp_hdr_t *hdr) {
         }
     }
 
+}
+
+int tcp_recv_window (tcp_t *tcp) {
+    return tcp_buf_free_cnt(&tcp->recv.buf);
 }

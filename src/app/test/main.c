@@ -44,6 +44,7 @@ net_err_t netdev_init(void){
 	pktbuf_fill(buf, 0x53, 32);
 
 	ipv4_out(0, &dest, &src, buf);
+	// pktbuf_free(buf);
 	//直接调用链路层发送
     // netif_out(netif, &dest, buf);
     dbg_info(DBG_NETIF, "netif0 init done");
@@ -243,6 +244,8 @@ void base_test(){
 	tcp_test();
 	
 }
+
+void download_test (const char * filename, int port);
 int main (void) {
 	
 	net_init();
@@ -251,7 +254,8 @@ int main (void) {
 	net_start();
 	ping_test();
 	
-	base_test();
+	// base_test();
+	download_test("hello.txt", 10000);
 	
 
 	

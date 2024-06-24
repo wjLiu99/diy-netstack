@@ -70,3 +70,53 @@ int tcp_buf_remove (tcp_buf_t *buf, int cnt) {
     buf->count -= cnt;
     return cnt;
 }
+
+int tcp_buf_write_recv(tcp_buf_t * dest, int offset, pktbuf_t * src, int total) {
+    // 计算缓冲区中的起始索引，注意回绕
+    int start = dest->in + offset;
+    if (start >= dest->size) {
+        start = start - dest->size;
+    }
+
+    // 计算实际可写的数据量
+    int free_size = tcp_buf_free_cnt(dest) - offset;            // 跳过的一部分相当于是已经被写入了
+    total = (total > free_size) ? free_size : total;
+
+    int size = total;
+    while (size > 0) {
+        // 从start到缓存末端的单元数量，可能其中有数据也可能没有
+        int free_to_end = dest->size - start;
+
+        // 大小超过到尾部的空闲数据量，只拷贝一部分
+        int curr_copy = size > free_to_end ? free_to_end : size;
+        pktbuf_read(src, dest->data + start, (int)curr_copy);
+
+        // 增加写索引，注意回绕
+        start += curr_copy;
+        if (start >= dest->size) {
+            start = start - dest->size;
+        }
+
+        // 增加已写入的数据量
+        dest->count += curr_copy;
+        size -= curr_copy;
+    }
+
+    dest->in = start;
+    return total;
+}
+
+int tcp_buf_read_recv (tcp_buf_t *buf, uint8_t  *dest, int count) {
+    int total = (count > buf->count) ? buf->count : count;
+    int cur_size = total;
+    while (cur_size > 0) {
+        *dest++ = buf->data[buf->out++];
+        if (buf->out > buf->size) {
+            buf->out = 0;
+        }
+        cur_size--;
+        buf->count--;
+    }
+
+    return total;
+}

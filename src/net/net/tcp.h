@@ -120,14 +120,17 @@ typedef struct _tcp_t {
     //接收相关
     struct {
         uint32_t nxt;   //期望收到的下一个字节
-        uint32_t iss;   //初始序号
+        uint32_t iss;   //初始序号 
         sock_wait_t wait;
+        tcp_buf_t buf;
+        uint8_t data[TCP_RBUF_SIZE];
     } recv;
 
     //标志位，记录数据发送情况，处理重传
     struct {
         uint32_t syn_out : 1;   //syn是否发送
         uint32_t fin_out : 1;   //fin是否发送
+        uint32_t fin_in : 1;    //是否接收完毕, 解决数据丢失重传， 数据全部接收完毕且接收到fin报文才置位
         uint32_t irs_valid : 1; //是否收到对方syn
     } flags;
 
@@ -141,6 +144,7 @@ tcp_t * tcp_find (ipaddr_t *local_ip, uint16_t local_port, ipaddr_t *remote_ip, 
 
 
 void tcp_read_option (tcp_t *tcp, tcp_hdr_t *hdr);
+int tcp_recv_window (tcp_t *tcp);
 
 //终止tcp连接
 net_err_t tcp_abort(tcp_t *tcp, net_err_t err);
@@ -164,4 +168,9 @@ static inline int tcp_hdr_size (tcp_hdr_t *hdr) {
 static inline void tcp_set_hdr_size (tcp_hdr_t *hdr, int size) {
     hdr->shdr  = size / 4;
 }
+
+//a <= b
+#define TCP_SEQ_LE(a, b)    (((int32_t)(a) - (int32_t)(b)) <= 0)
+//a < b
+#define TCP_SEQ_LT(a, b)    (((int32_t)(a) - (int32_t)(b)) < 0)
 #endif

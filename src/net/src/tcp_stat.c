@@ -112,8 +112,10 @@ net_err_t tcp_established_in(tcp_t *tcp, tcp_seg_t *seg) {
     }
     //提取数据
     tcp_data_in(tcp, seg);
+    tcp_transmit(tcp);
 
-    if (hdr->f_fin) {
+    //if (hdr->f_fin) {
+    if (tcp->flags.fin_in) {
         tcp_set_state(tcp, TCP_STATE_CLOSE_WAIT);
     }
 
@@ -140,6 +142,8 @@ net_err_t tcp_close_wait_in (tcp_t * tcp, tcp_seg_t * seg){
         return NET_ERR_UNREACH;
         
     }
+
+    tcp_transmit(tcp);
     return NET_ERR_OK;
 }
 
@@ -166,7 +170,12 @@ net_err_t tcp_last_ack_in (tcp_t * tcp, tcp_seg_t * seg){
         return NET_ERR_UNREACH;
     }
 
-    return tcp_abort(tcp, NET_ERR_CLOSE);
+    tcp_transmit(tcp);
+    if (tcp->flags.fin_out == 0) { //fin报文已经被对方确认
+        return tcp_abort(tcp, NET_ERR_CLOSE);
+    }
+    return NET_ERR_OK;
+    
 }
 
 
@@ -197,15 +206,18 @@ net_err_t tcp_fin_wait_1_in(tcp_t * tcp, tcp_seg_t * seg){
     }
     //还函数内会发送ack
     tcp_data_in(tcp, seg);
+
+    tcp_transmit(tcp);
     if(tcp->flags.fin_out == 0) { //发送的fin报文对方已经确认收到，走正常的四次挥手
         
-        if (hdr->f_fin) {
-        //如果收到fin报文切换到timewait
+        //if (hdr->f_fin) {
+        if (tcp->flags.fin_in) {
+        //如果收到fin报文切换到timewait,2msl
         tcp_time_wait(tcp);
         } else {
             tcp_set_state(tcp, TCP_STATE_FIN_WAIT_2);
         }
-    } else { //fin报文对方没收到，同时关闭
+    } else if (tcp->flags.fin_in) { //if (hdr->f_fin){ //fin报文对方没收到，且收到了对方的fin报文， 同时关闭
         tcp_set_state(tcp, TCP_STATE_CLOSING);
     }
     
@@ -239,7 +251,8 @@ net_err_t tcp_fin_wait_2_in(tcp_t * tcp, tcp_seg_t * seg){
     //函数内会发送ack,如果有数据对数据进行处理
     tcp_data_in(tcp, seg);
 
-    if (hdr->f_fin) {
+    //if (hdr->f_fin) {
+    if (tcp->flags.fin_in) {
         //如果收到fin报文切换到timewait
         tcp_time_wait(tcp);
     }
@@ -266,7 +279,7 @@ net_err_t tcp_closing_in (tcp_t * tcp, tcp_seg_t * seg){
         return NET_ERR_UNREACH;
         
     }
-
+    tcp_transmit(tcp);
     //如果fin报文已经被对方接收，进入timewait状态
     if (tcp->flags.fin_out == 0){
         tcp_time_wait(tcp);
@@ -297,7 +310,8 @@ net_err_t tcp_time_wait_in (tcp_t * tcp, tcp_seg_t * seg){
     //该状态不能接收任何数据
     // tcp_data_in(tcp, seg);
 
-    if (hdr->f_fin) {
+    //if (hdr->f_fin) {
+    if (tcp->flags.fin_in) {
         tcp_send_ack(tcp, seg);
         //再次收到fin报文说明上次发送的ack丢失了，需要重新加入timewait状态，重新计时2msl
         tcp_time_wait(tcp);

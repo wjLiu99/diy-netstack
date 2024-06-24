@@ -89,8 +89,44 @@ static int copy_send_data (tcp_t *tcp, pktbuf_t *buf, int doff, int dlen) {
 
 }
 
+static void write_sync_option (tcp_t *tcp, pktbuf_t *buf) {
+    
+    int opt_len = sizeof(tcp_opt_mss_t);
+    net_err_t err = pktbuf_resize(buf, buf->total_size + opt_len);  
+    if (err < 0) {
+        dbg_error(DBG_TCP, "resize err");
+        return ;
+    }  
+
+    tcp_opt_mss_t mss;
+    mss.kind = TCP_OPT_MSS;
+    mss.length = sizeof(tcp_opt_mss_t);
+    mss.mss = x_ntohs(tcp->mss);
+
+    pktbuf_reset_acc(buf);
+    pktbuf_seek(buf, sizeof(tcp_hdr_t));
+    pktbuf_write(buf, (uint8_t *)&mss, sizeof(mss));
+
+}
+
 //通用数据发送接口
 net_err_t tcp_transmit (tcp_t *tcp) {
+
+    //发送数据的长度和偏移量
+    int dlen, doff;
+    //获取发送相关信息
+    get_send_info(tcp, &doff, &dlen);
+    if (dlen < 0) {
+        //等于0可以发送，因为syn和fin报文数据量都是0
+        return NET_ERR_OK;
+    }
+    //如果数据量为0，不是fin也不是syn报文就不发送
+    int seq_len = dlen + tcp->flags.syn_out + tcp->flags.fin_out;
+    if (seq_len == 0) {
+        return NET_ERR_OK;
+    }
+
+
    pktbuf_t *buf = pktbuf_alloc(sizeof(tcp_hdr_t));
     if (!buf) {
         dbg_error(DBG_TCP, "no pktbuf");
@@ -109,19 +145,17 @@ net_err_t tcp_transmit (tcp_t *tcp) {
     out->flags = 0;
     out->f_syn = tcp->flags.syn_out;
     out->f_ack = tcp->flags.irs_valid; //是否已经收到对方syn
-    out->f_fin = tcp->flags.fin_out; // 是否已经收到对方的fin为，并且调用close函数发送fin报文
-    out->win = 1024;
+    // 是否已经收到对方的fin为，并且调用close函数发送fin报文,要检查发送缓冲区是否为空，没有数据了才能发送fin报文
+    out->f_fin = (tcp_buf_count(&tcp->send.buf) == 0) ? tcp->flags.fin_out : 0; 
+    out->win = tcp_recv_window(tcp);
     out->urgptr = 0;
-    tcp_set_hdr_size(out, sizeof(tcp_hdr_t));
+    
 
-    //发送数据的长度和偏移量
-    int dlen, doff;
-    //获取发送相关信息
-    get_send_info(tcp, &doff, &dlen);
-    if (dlen < 0) {
-        //等于0可以发送，因为syn和fin报文数据量都是0
-        return NET_ERR_OK;
+    if (out->f_syn) {
+        write_sync_option(tcp, buf);
     }
+    tcp_set_hdr_size(out, buf->total_size);
+
     //将tcp缓冲区数据拷贝到pktbuf中
     copy_send_data(tcp, buf, doff, dlen);
 
@@ -148,6 +182,15 @@ net_err_t tcp_send_syn (tcp_t *tcp) {
 
 net_err_t tcp_ack_process (tcp_t *tcp, tcp_seg_t *seg) {
     tcp_hdr_t *hdr = seg->hdr;
+
+
+
+    //snd.una < ack <= snd.nxt
+    if (TCP_SEQ_LE(hdr->ack, tcp->send.una)) {//重复的ack不算错误
+        return NET_ERR_OK;
+    } else if (TCP_SEQ_LT(tcp->send.nxt, hdr->ack)){
+        return NET_ERR_UNREACH;
+    }
     //如果是发送了syn报文，对方发送的确认就需要对标志位处理，已发送未确认调整
     if (tcp->flags.syn_out) {
         tcp->send.una++;
@@ -196,7 +239,7 @@ net_err_t tcp_send_ack (tcp_t *tcp, tcp_seg_t *seg) {
     out->flags = 0;
     out->f_syn = tcp->flags.syn_out;
     out->f_ack = 1; //是否已经收到对方syn
-    out->win = 1024;
+    out->win = tcp_recv_window(tcp);
     out->urgptr = 0;
     tcp_set_hdr_size(out, sizeof(tcp_hdr_t));
     net_err_t err = send_out(out, buf, &tcp->base.remote_ip, &tcp->base.local_ip);

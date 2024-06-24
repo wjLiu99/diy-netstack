@@ -3,6 +3,7 @@
 #include "protocol.h"
 #include "tcp_out.h"
 #include "tcp_stat.h"
+#include "tcp_buf.h"
 
 void tcp_set_init(tcp_seg_t *seg, pktbuf_t *buf, ipaddr_t *local, ipaddr_t *remote) {
     seg->buf = buf;
@@ -14,7 +15,27 @@ void tcp_set_init(tcp_seg_t *seg, pktbuf_t *buf, ipaddr_t *local, ipaddr_t *remo
     //syn和fin也占一位长度
     seg->seq_len = seg->data_len + seg->hdr->f_syn + seg->hdr->f_fin;
 }
-
+//检测seq是否合法
+static int tcp_seq_acceptable (tcp_t *tcp, tcp_seg_t *seg) {
+    uint32_t rcv_win = tcp_recv_window(tcp);
+    if (seg->seq_len == 0) {//数据长度为0，不是syn和fin报文
+        if (rcv_win == 0) {
+            return seg->seq == tcp->recv.nxt;
+        } else {
+            int v = TCP_SEQ_LE(tcp->recv.nxt, seg->seq) && TCP_SEQ_LT(seg->seq, tcp->recv.nxt + rcv_win);
+            return v;
+        }
+    } else {
+        if (rcv_win == 0) {
+            return 0; 
+        } else {
+            int v = TCP_SEQ_LE(tcp->recv.nxt, seg->seq) && TCP_SEQ_LT(seg->seq, tcp->recv.nxt + rcv_win);
+            uint32_t last = seg->seq + seg->seq_len -1;
+            v |= TCP_SEQ_LE(tcp->recv.nxt, last) && TCP_SEQ_LT(last, tcp->recv.nxt + rcv_win);
+            return v;
+        }
+    }
+}
 net_err_t tcp_in (pktbuf_t *buf, ipaddr_t *src, ipaddr_t *dest) {
     //根据不同状态做不同处理，函数调用表
     static const tcp_proc_t tcp_state_proc[] = {
@@ -30,8 +51,13 @@ net_err_t tcp_in (pktbuf_t *buf, ipaddr_t *src, ipaddr_t *dest) {
         [TCP_STATE_LISTEN] = tcp_listen_in,
         [TCP_STATE_SYN_RECVD] = tcp_syn_recvd_in,
     };
+    
+    //必须设置包头连续性，忘了。。。而且不能获取整个头部的大小，要从包头的shdr中获取，该字段可能不在第一个数据块中
+    if (pktbuf_set_cont(buf, sizeof(tcp_hdr_t)) < 0) {
+        dbg_error(DBG_TCP, "set pkt cont err");
+        return -1;
+    }
     tcp_hdr_t *tcp_hdr = (tcp_hdr_t *)pktbuf_data(buf);
-
     if (tcp_hdr->checksum) {
         pktbuf_reset_acc(buf);
         if (checksum_peso(buf,  dest, src, NET_PROTOCOL_TCP)) {
@@ -74,28 +100,64 @@ net_err_t tcp_in (pktbuf_t *buf, ipaddr_t *src, ipaddr_t *dest) {
         tcp_show_list();
         return NET_ERR_NONE;
     }
+
+    net_err_t err = pktbuf_seek(buf, tcp_hdr_size(tcp_hdr));
+    if (err < 0) {
+        dbg_error(DBG_TCP, "pktbuf seek err");
+        return NET_ERR_SIZE;
+    }
+
+    if((tcp->state != TCP_STATE_CLOSED) && (TCP_STATE_SYN_SENT  != tcp->state) && (tcp->state != TCP_STATE_LISTEN))
+    {
+        if (!tcp_seq_acceptable(tcp, &seg)) {
+            dbg_info(DBG_TCP, "seq err");
+            goto free;
+        }
+    }
     //查找函数调用表
     tcp_state_proc[tcp->state](tcp, &seg);
 
     tcp_show_info("after tcp in", tcp);
     // tcp_show_list();
+free:
+    pktbuf_free(buf);
 
     return NET_ERR_OK;
 
 
 }
+static int copy_data_to_recvbuf (tcp_t *tcp, tcp_seg_t *seg) {
+    int doffset = seg->seq - tcp->recv.nxt;
+    if (seg->data_len && (doffset == 0)) {
+        return tcp_buf_write_recv(&tcp->recv.buf, doffset, seg->buf, seg->data_len);
+    }
+    return 0;
+}
 
 net_err_t tcp_data_in (tcp_t *tcp, tcp_seg_t *seg) {
+    
+    int size = copy_data_to_recvbuf(tcp, seg);
+    if (size < 0) {
+        dbg_error(DBG_TCP, "copy data to recvbuf err");
+        return NET_ERR_NONE;
+    }
     int wakeup = 0;
+
+    if (size) {
+        tcp->recv.nxt += size;
+        wakeup++;
+    }
     tcp_hdr_t *hdr = seg->hdr;
-    if (hdr->f_fin) {
+    if (hdr->f_fin && (tcp->recv.nxt == seg->seq)) { 
+        tcp->flags.fin_in = 1;  //只有下一个要接受的字节为fin报文才置位
         tcp->recv.nxt++;
         wakeup++;
     }
 
 
     if (wakeup) {
-        if (hdr->f_fin) {
+        //if (hdr->f_fin) {//不能直接通知应用结束， 数据可能没有接收完整，比如之前的数据丢了就接受到fin，还需要等待对方重传
+        if (tcp->flags.fin_in) {
             //对端关闭，全部唤醒，不支持半关闭
             sock_wakeup(&tcp->base, SOCK_WAIT_ALL, NET_ERR_CLOSE);
         } else {

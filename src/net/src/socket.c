@@ -204,6 +204,10 @@ ssize_t x_recvfrom(int s, void* buf, size_t len, int flags, struct x_sockaddr* s
 
         if (req.wait) {
             err = sock_wait_enter(req.wait, req.wait_tmo);
+            if (err == NET_ERR_CLOSE) {
+                dbg_info(DBG_SOCKET, "remote closed");
+                return 0;
+            }
             if (err < 0) {
             dbg_error(DBG_SOCKET, "sock wait err");
             return -1;
@@ -216,6 +220,8 @@ ssize_t x_recvfrom(int s, void* buf, size_t len, int flags, struct x_sockaddr* s
     }
     return -1;
 }
+
+
 ssize_t x_recv(int s, void* buf, size_t len, int flags) {
         if (!buf || !len ) {
         dbg_error(DBG_SOCKET, "recv param err");
@@ -242,14 +248,18 @@ ssize_t x_recv(int s, void* buf, size_t len, int flags) {
             return (ssize_t)req.data.comp_len;
         }
 
-        if (req.wait) {
+        if (req.wait) {//阻塞等
             err = sock_wait_enter(req.wait, req.wait_tmo);
+            if (err == NET_ERR_CLOSE) {
+                dbg_info(DBG_SOCKET, "remote closed");
+                return 0;
+            }
             if (err < 0) {
             dbg_error(DBG_SOCKET, "sock wait err");
             return -1;
             } 
 
-        } else {
+        } else {//非阻塞直接返回
                 break;
             }
 

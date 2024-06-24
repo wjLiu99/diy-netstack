@@ -368,7 +368,7 @@ static net_err_t ip_normal_in (netif_t *netif, pktbuf_t *buf, ipaddr_t *src_ip, 
                 return err;
             }
             
-            break;
+            return NET_ERR_OK;
         }
 
         case NET_PROTOCOL_UDP:{
@@ -479,8 +479,16 @@ net_err_t ipv4_in (netif_t *netif, pktbuf_t *buf) {
     //分片的数据包这两个至少有一个是不为0的
     if (ipv4_pkt->ipv4_hdr.offset || ipv4_pkt->ipv4_hdr.more) {
         err = ip_frag_in(netif, buf, &src_ip, &dest_ip);
+        if (err < 0) {
+            dbg_error(DBG_IP, "ip frag in err");
+            return err;
+        }
     } else {
         err = ip_normal_in(netif, buf, &src_ip, &dest_ip);
+        if (err < 0) {
+            dbg_error(DBG_IP, "ip normal in err");
+            return err;
+        }
     }
 
 

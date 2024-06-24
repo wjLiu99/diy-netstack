@@ -20,6 +20,10 @@ void tcp_buf_read_send (tcp_buf_t *buf, int offset, pktbuf_t *dest, int len);
 //移除缓冲区数据，接受到对方ack调用
 int tcp_buf_remove (tcp_buf_t *buf, int cnt);
 
+//offset是接收窗口中空闲位置的偏移量
+int tcp_buf_write_recv (tcp_buf_t *buf, int offset ,pktbuf_t *data, int total);
+int tcp_buf_read_recv (tcp_buf_t *buf, uint8_t  *data, int count);
+
 static inline int tcp_buf_size (tcp_buf_t *buf) {
     return buf->size;
 }
