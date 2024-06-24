@@ -39,7 +39,7 @@ void tcp_set_state (tcp_t * tcp, tcp_state_t state) {
 net_err_t tcp_closed_in(tcp_t *tcp, tcp_seg_t *seg) {
     //关闭状态，直接回复reset
     if (!seg->hdr->f_rst) {
-         tcp_send_reset(tcp);
+        tcp_send_reset(seg);
     }
    
     return NET_ERR_OK;
@@ -69,6 +69,8 @@ net_err_t tcp_syn_sent_in(tcp_t *tcp, tcp_seg_t *seg) {
         tcp->recv.iss = hdr->seq;
         tcp->recv.nxt = hdr->seq + 1;
         tcp->flags.irs_valid = 1;
+        //读取选项获得mss
+        tcp_read_option(tcp, hdr);
         if (hdr->ack) { //如果ack为0是同时打开连接的情况
             tcp_ack_process(tcp, seg);
         }

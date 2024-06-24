@@ -57,6 +57,37 @@ net_err_t tcp_send_reset (tcp_seg_t *seg) {
     return NET_ERR_OK;
 
 }
+//获取发送信息
+static void get_send_info (tcp_t *tcp, int *doff, int *dlen) {
+    //偏移量为下一个要发送的字节在当前发送缓冲区的位置
+    *doff = tcp->send.nxt - tcp->send.una;
+    //发送数据长度为发送缓冲区大小减去待发送字节位置，就是发送缓冲区内待发送字节后面所有的数据
+    *dlen = tcp_buf_count(&tcp->send.buf) - *doff;
+    
+    *dlen = (*dlen > tcp->mss) ? tcp->mss : *dlen;
+
+}
+
+static int copy_send_data (tcp_t *tcp, pktbuf_t *buf, int doff, int dlen) {
+    if (dlen == 0) {
+        return 0;
+
+    }
+
+    net_err_t err = pktbuf_resize(buf, (int)buf->total_size + dlen);
+    if (err < 0){
+        dbg_error(DBG_TCP, "pkfbuf resize err");
+        return -1;
+    }
+    int hdr_size = tcp_hdr_size((tcp_hdr_t *)pktbuf_data(buf));
+    pktbuf_reset_acc(buf);
+    pktbuf_seek(buf, hdr_size);
+    //读发送缓冲区，拷贝到pktbuf中
+    tcp_buf_read_send(&tcp->send.buf, doff, buf, dlen);
+    return dlen;
+
+
+}
 
 //通用数据发送接口
 net_err_t tcp_transmit (tcp_t *tcp) {
@@ -82,6 +113,21 @@ net_err_t tcp_transmit (tcp_t *tcp) {
     out->win = 1024;
     out->urgptr = 0;
     tcp_set_hdr_size(out, sizeof(tcp_hdr_t));
+
+    //发送数据的长度和偏移量
+    int dlen, doff;
+    //获取发送相关信息
+    get_send_info(tcp, &doff, &dlen);
+    if (dlen < 0) {
+        //等于0可以发送，因为syn和fin报文数据量都是0
+        return NET_ERR_OK;
+    }
+    //将tcp缓冲区数据拷贝到pktbuf中
+    copy_send_data(tcp, buf, doff, dlen);
+
+
+    //syn和fin也占一个编号,下一个待发送的数据
+    tcp->send.nxt += out->f_syn + out->f_fin + dlen;
     net_err_t err = send_out(out, buf, &tcp->base.remote_ip, &tcp->base.local_ip);
 
     if (err < 0) {
@@ -89,8 +135,7 @@ net_err_t tcp_transmit (tcp_t *tcp) {
         pktbuf_free(buf);
         return err;
     }
-    //syn和fin也占一个编号
-    tcp->send.nxt += out->f_syn + out->f_fin;
+    
 
     return NET_ERR_OK;
 }
@@ -108,10 +153,27 @@ net_err_t tcp_ack_process (tcp_t *tcp, tcp_seg_t *seg) {
         tcp->send.una++;
         tcp->flags.syn_out = 0;
     }
-    //fin报文已发出，且对方确认接收清空该标志位
-    if (tcp->flags.fin_out && (hdr->ack - tcp->send.una > 0)) {
-        tcp->flags.fin_out = 0;
+    //对方确认收到的字节量
+    int ack_cnt = hdr->ack - tcp->send.una;
+    //发送缓冲区中已发送未确认的字节量
+    int unacked = tcp->send.nxt - tcp->send.una;
+    int cur_acked = (ack_cnt > unacked) ? unacked : ack_cnt;
+
+    if (cur_acked > 0) { //有数据被对方确认接收
+        tcp->send.una += cur_acked;
+        //如果对方对fin报文进行了确认，减完值会为1
+        cur_acked -= tcp_buf_remove(&tcp->send.buf, cur_acked);
+        //唤醒等待写的进程
+        sock_wakeup(&tcp->base, SOCK_WAIT_WRITE, NET_ERR_OK);
+            //fin报文已发出，且对方确认接收清空该标志位
+        if (tcp->flags.fin_out && cur_acked) {
+            tcp->flags.fin_out = 0;
+        }
+
     }
+    
+
+
 
     return NET_ERR_OK;
 
@@ -154,4 +216,15 @@ net_err_t tcp_send_fin (tcp_t *tcp) {
     tcp_transmit(tcp);
     return NET_ERR_OK;
 
+}
+
+
+int tcp_write_sendbuf (tcp_t *tcp, const uint8_t *data, int len) {
+    int free_cnt = tcp_buf_free_cnt(&tcp->send.buf);
+    if (free_cnt <= 0) {
+        return 0;
+    }
+    int wr_len = (len > free_cnt) ? free_cnt : len;
+    tcp_buf_write_send(&tcp->send.buf, data, wr_len);
+    return wr_len;
 }

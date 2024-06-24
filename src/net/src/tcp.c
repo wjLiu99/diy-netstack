@@ -98,6 +98,15 @@ static uint32_t tcp_get_iss (void) {
     return seq++;
 }
 static net_err_t tcp_init_connect(tcp_t *tcp){
+    //查找路由表看是直接交付还是间接交付
+    rentry_t *rt = rt_find(&tcp->base.remote_ip);
+    if (rt->netif->mtu == 0) {
+        tcp->mss = TCP_DEFAULT_MSS;
+    } else if (!ipaddr_is_any(&rt->next_hop)) {
+        tcp->mss = TCP_DEFAULT_MSS;
+    } else {
+        tcp->mss = rt->netif->mtu - sizeof(ipv4_hdr_t) - sizeof(tcp_hdr_t);
+    }
     tcp->send.iss = tcp_get_iss();
     tcp->send.una = tcp->send.nxt = tcp->send.iss;
 
@@ -206,12 +215,63 @@ static tcp_t *tcp_get_free (int wait) {
     }
     return tcp;
 }
+
+
+
+static net_err_t tcp_send (struct _sock_t * s, const void* buf, size_t len, int flags, ssize_t * result_len) {
+    tcp_t *tcp = (tcp_t *)s;
+
+    switch (tcp->state)
+    {
+    //某些状态不能进行数据发送
+    case TCP_STATE_CLOSED:
+        dbg_error(DBG_TCP, "tcp closed");
+        return NET_ERR_CLOSE;
+
+    //主动关闭，不允许发送
+    case TCP_STATE_FIN_WAIT_1:
+    case TCP_STATE_FIN_WAIT_2:
+    case TCP_STATE_TIME_WAIT:
+    case TCP_STATE_LAST_ACK:
+    case TCP_STATE_CLOSING:
+        dbg_error(DBG_TCP, "tcp closed");
+        return NET_ERR_CLOSE;
+
+    //允许发送
+    case TCP_STATE_CLOSE_WAIT:
+    case TCP_STATE_ESTABLISHED:
+        break;
+
+
+    //未建立连接
+    case TCP_STATE_LISTEN:
+    case TCP_STATE_SYN_RECVD:
+    case TCP_STATE_SYN_SENT:
+        dbg_error(DBG_TCP, "tcp state err");
+        return NET_ERR_STATE;
+    default:
+        dbg_error(DBG_TCP, "unknown state");
+        return NET_ERR_STATE;
+    }
+
+    int size = tcp_write_sendbuf(tcp, (uint8_t *)buf, (int)len);
+    if (size <= 0) {
+        *result_len = 0;
+        return NET_ERR_WAIT;
+    } else {
+        *result_len = size;
+        tcp_transmit(tcp);
+        return NET_ERR_OK;
+    }
+    
+}
+
 static tcp_t *tcp_alloc (int wait, int family, int protocol) {
         static const sock_ops_t tcp_ops = {
         .connect = tcp_connect,
         .close = tcp_close,
         .setopt = sock_setopt,
-        .send = sock_send,
+        .send = tcp_send,
         .recv = sock_recv,
     };
     tcp_t *tcp = tcp_get_free(wait);
@@ -221,6 +281,8 @@ static tcp_t *tcp_alloc (int wait, int family, int protocol) {
     }
     plat_memset(tcp, 0, sizeof(tcp_t));
     tcp->state = TCP_STATE_CLOSED;
+    //静态分配， 可以在前面使用动态分配函数分配一片空间
+    tcp_buf_init(&tcp->send.buf, tcp->send.data, TCP_SBUF_SIZE);
     
     net_err_t err = sock_init(&tcp->base, family, protocol, &tcp_ops);
     if (err < 0) {
@@ -304,4 +366,39 @@ net_err_t tcp_abort(tcp_t *tcp, net_err_t err) {
     //通知所有等待结构
     sock_wakeup(&tcp->base, SOCK_WAIT_ALL, err);
     return NET_ERR_OK;
+}
+
+
+void tcp_read_option (tcp_t *tcp, tcp_hdr_t *hdr) {
+    uint8_t *opt_start = (uint8_t *)hdr + sizeof(tcp_hdr_t);
+    uint8_t *opt_end = opt_start + (tcp_hdr_size(hdr) - sizeof(tcp_hdr_t));
+    while (opt_start < opt_end) {
+        switch (opt_start[0])
+        {
+        case TCP_OPT_MSS:{
+            tcp_opt_mss_t *opt = (tcp_opt_mss_t *)opt_start;
+            if (opt->length == 4) {
+                uint16_t mss = x_ntohs(opt->mss);
+                if (mss < tcp->mss) {
+                    tcp->mss = mss;
+                }
+                
+            }
+            opt_start += opt->length;
+            break;
+        }
+        case TCP_OPT_NOP: {
+            opt_start++;
+            break;
+        }
+        case TCP_OPT_END: {
+            return;
+        }
+        default:
+            //不一定对，选项字段长度可能不同
+            opt_start++;
+            break;
+        }
+    }
+
 }

@@ -3,9 +3,21 @@
 
 #include "sock.h"
 #include "net_cfg.h"
+#include "tcp_buf.h"
 
+#define TCP_OPT_END     0
+#define TCP_OPT_NOP     1
+#define TCP_OPT_MSS     2
+
+#define TCP_DEFAULT_MSS     536
 
 #pragma pack(1)
+
+typedef struct _tcp_opt_mss_t {
+    uint8_t kind;
+    uint8_t length;
+    uint16_t mss;
+}tcp_opt_mss_t;
 
 typedef struct _tcp_hdr_t {
     uint16_t sport;
@@ -88,6 +100,7 @@ typedef struct _tcp_seg_t {
 typedef struct _tcp_t {
     sock_t base;
     tcp_state_t state;      // TCP状态
+    int mss;
     //连接相关
     struct {
         sock_wait_t wait;
@@ -99,6 +112,9 @@ typedef struct _tcp_t {
         uint32_t nxt;   //下一个待发送的字节
         uint32_t iss;   //初始序号
         sock_wait_t wait;
+
+        tcp_buf_t buf;
+        uint8_t data[TCP_SBUF_SIZE];
     } send;
 
     //接收相关
@@ -122,6 +138,9 @@ net_err_t tcp_init (void);
 sock_t *tcp_create (int family, int protocol);
 
 tcp_t * tcp_find (ipaddr_t *local_ip, uint16_t local_port, ipaddr_t *remote_ip, uint16_t remote_port);
+
+
+void tcp_read_option (tcp_t *tcp, tcp_hdr_t *hdr);
 
 //终止tcp连接
 net_err_t tcp_abort(tcp_t *tcp, net_err_t err);

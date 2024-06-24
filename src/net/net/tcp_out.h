@@ -15,4 +15,10 @@ net_err_t tcp_send_ack (tcp_t *tcp, tcp_seg_t *seg);
 
 //发送fin分节
 net_err_t tcp_send_fin (tcp_t *tcp);
+
+//写tcp发送缓冲
+int tcp_write_sendbuf (tcp_t *tcp, const uint8_t *data, int len);
+
+
+net_err_t tcp_transmit (tcp_t *tcp);
 #endif

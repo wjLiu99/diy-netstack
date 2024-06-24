@@ -72,4 +72,7 @@
 #define IP_ROUTE_NR         20
 #define NET_PORT_DYN_START      1024
 #define NET_PORT_DYN_END        65535
+
+
+#define TCP_SBUF_SIZE           4096  //tcp发送缓存大小
 #endif
