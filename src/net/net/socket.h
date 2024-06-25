@@ -87,6 +87,8 @@ struct x_timeval {
 
 int x_socket (int family, int type, int protocol);
 int x_bind(int s, const struct x_sockaddr *addr, x_socklen_t len);
+int x_listen (int s, int backlog);
+int x_accept (int s,  struct x_sockaddr *addr, x_socklen_t *len);
 int x_connect(int s, const struct x_sockaddr *addr, x_socklen_t len);
 ssize_t x_sendto(int s, const void* buf, size_t len, int flags, const struct x_sockaddr* dest, x_socklen_t dest_len);
 ssize_t x_send(int s, const void* buf, size_t len, int flags);

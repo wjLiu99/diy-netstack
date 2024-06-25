@@ -102,8 +102,10 @@ typedef struct _tcp_t {
     sock_t base;
     tcp_state_t state;      // TCP状态
     int mss;
+    struct _tcp_t *parent;
     //连接相关
     struct {
+        int backlog;
         sock_wait_t wait;
         //保活相关参数
         int keep_idle;
@@ -140,6 +142,7 @@ typedef struct _tcp_t {
         uint32_t fin_in : 1;    //是否接收完毕, 解决数据丢失重传， 数据全部接收完毕且接收到fin报文才置位
         uint32_t irs_valid : 1; //是否收到对方syn
         uint32_t keep_enable : 1;//是否开启保活机制
+        uint32_t inactive : 1;  //是否激活，完成连接未使用
     } flags;
 
 } tcp_t;
@@ -167,6 +170,10 @@ void tcp_kill_all_timers (tcp_t *tcp);
 void tcp_show_info (char * msg, tcp_t * tcp);
 void tcp_display_pkt (char * msg, tcp_hdr_t * tcp_hdr, pktbuf_t * buf);
 void tcp_show_list (void);
+
+
+int tcp_backlog_count (tcp_t *tcp);
+tcp_t *tcp_create_child (tcp_t *tcp, tcp_seg_t *seg);
 #else
 #define tcp_show_info(msg, tcp)
 #define tcp_display_pkt(msg, hdr, buf)

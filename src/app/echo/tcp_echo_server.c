@@ -1,6 +1,7 @@
 #include "tcp_echo_server.h"
-#include <arpa/inet.h>
+//#include <arpa/inet.h>
 #include "sys_plat.h"
+#include "net_api.h"
 
 void tcp_echo_server_start(int port){
     plat_printf("tcp echo server port: %d\n", port);
@@ -15,7 +16,7 @@ void tcp_echo_server_start(int port){
     socklen_t len = sizeof(cli_addr);
     plat_memset(&ser_addr, 0, sizeof(ser_addr));
     ser_addr.sin_family = AF_INET;
-    ser_addr.sin_addr.s_addr = inet_addr("192.168.133.102");
+    ser_addr.sin_addr.s_addr = htonl(INADDR_ANY);;
     ser_addr.sin_port = htons(port);
 
     if(bind(s, (const struct sockaddr *)&ser_addr, sizeof(ser_addr)) < 0){
@@ -23,7 +24,7 @@ void tcp_echo_server_start(int port){
         goto end;
     }
 
-    listen(s, 5);
+    listen(s, 2);
 
     while(1){
         int cfd = accept(s, (struct sockaddr *)&cli_addr, &len);

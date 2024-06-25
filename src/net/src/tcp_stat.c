@@ -318,14 +318,67 @@ net_err_t tcp_time_wait_in (tcp_t * tcp, tcp_seg_t * seg){
     }
 
     return NET_ERR_OK;
-    return NET_ERR_OK;
+
 }
 
 
 
 net_err_t tcp_listen_in(tcp_t *tcp, tcp_seg_t *seg){
-    return NET_ERR_OK;
+    tcp_hdr_t *hdr = seg->hdr;
+    //是否收到reset报文,监听tcp不能终止,还没建立连接发送reset干嘛
+    if (hdr->f_rst || hdr->f_ack) {
+        return NET_ERR_OK;
+
+    }
+
+    //是否是syn报文
+    if (hdr->f_syn) {
+        if (tcp_backlog_count(tcp) >= tcp->conn.backlog) {
+            dbg_warning(DBG_TCP, "queue  full");
+            return NET_ERR_FULL;
+        }
+        tcp_t *child = tcp_create_child(tcp, seg);
+        if (child == (tcp_t *)0) {
+            dbg_error(DBG_TCP, "no tcp");
+            return NET_ERR_MEM;
+        }
+        tcp_set_state(child, TCP_STATE_SYN_RECVD);
+        tcp_send_syn(child);
+        return NET_ERR_OK;
+    }
+
+    return NET_ERR_UNREACH;
 }
+
 net_err_t tcp_syn_recvd_in(tcp_t *tcp, tcp_seg_t *seg){
+    tcp_hdr_t *hdr = seg->hdr;
+
+    if (hdr->f_rst) {
+        return tcp_abort(tcp, NET_ERR_RESET);
+    }
+    //该状态收到syn报文出现错误
+    if (hdr->f_syn) {
+        dbg_warning(DBG_TCP, "recv a syn");
+        tcp_send_reset(seg);
+        return tcp_abort(tcp, NET_ERR_RESET);
+    }
+
+    if (tcp_ack_process(tcp, seg) < 0) {
+        dbg_warning(DBG_TCP, "ack process failed");
+        return NET_ERR_UNREACH;
+    }
+
+    if (hdr->f_fin) {
+        //忽略细节
+        return NET_ERR_UNKNOWN;
+        //tcp_set_state(tcp, TCP_STATE_CLOSE_WAIT);
+
+    }
+
+    //收到正确ack响应,通知accept函数可以获取连接
+    tcp_set_state(tcp, TCP_STATE_ESTABLISHED);
+    if (tcp->parent) {
+        sock_wakeup((sock_t *)tcp->parent, SOCK_WAIT_CONN, NET_ERR_OK);
+    }
     return NET_ERR_OK;
 }

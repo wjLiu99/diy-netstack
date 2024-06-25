@@ -238,7 +238,8 @@ void udp_client_test(void) {
 	
 }
 void tcp_test (void) {
-	tcp_echo_client_start(friend0_ip, 10000);
+	//tcp_echo_client_start(friend0_ip, 10000);
+	tcp_echo_server_start(9999);
 }
 void base_test(){
 	tcp_test();
@@ -254,7 +255,7 @@ int main (void) {
 	net_start();
 	// ping_test();
 	
-	// base_test();
+	base_test();
 	download_test("hello.txt", 10000);
 	
 

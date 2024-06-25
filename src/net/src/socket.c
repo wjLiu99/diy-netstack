@@ -43,6 +43,58 @@ int x_bind(int s, const struct x_sockaddr *addr, x_socklen_t len) {
     return 0;
 }
 
+int x_listen(int s,int backlog) {
+    if (backlog <= 0) {
+        dbg_error(DBG_SOCKET, "backlog err");
+        return NET_ERR_PARAM;
+    }
+    sock_req_t req;
+    req.sockfd = s;
+    req.listen.backlog = backlog;
+    req.wait = (sock_wait_t *)0;
+    req.wait_tmo = 0;
+    net_err_t err = exmsg_func_exec(sock_listen_req_in, &req);
+    if (err < 0) {
+        dbg_error(DBG_SOCKET, "req listen err");
+        return -1;
+    }
+    return 0;
+}
+
+int x_accept (int s,  struct x_sockaddr *addr, x_socklen_t *len) {
+    if ((!addr) || (*len != sizeof(struct x_sockaddr)) || (s < 0)) {
+        dbg_error(DBG_SOCKET, "param err");
+        return -1;
+    }
+    
+    sock_req_t req;
+    req.sockfd = s;
+    req.accept.addr = addr;
+    req.accept.len = len;
+    req.accept.client = -1;
+    req.wait = (sock_wait_t *)0;
+    req.wait_tmo = 0;
+    net_err_t err = exmsg_func_exec(sock_accept_req_in, &req);
+    if (err < 0) {
+        dbg_error(DBG_SOCKET, "req accept err");
+        return -1;
+    }
+
+    if (req.accept.client >= 0) {
+        dbg_info(DBG_SOCKET, "new client");
+        return req.accept.client;
+    }
+
+    if (req.wait) {
+        err = sock_wait_enter(req.wait, req.wait_tmo);
+        if (err < 0) {
+            dbg_error(DBG_SOCKET, "sock wait err");
+            return -1;
+        }
+    }
+
+}
+
 int x_connect(int s, const struct x_sockaddr *addr, x_socklen_t len) {
 
     if ((!addr) || (len != sizeof(struct x_sockaddr)) || (s < 0)) {
@@ -300,16 +352,20 @@ int x_close(int s) {
     net_err_t err = exmsg_func_exec(sock_close_req_in, &req);
     if (err < 0) {
         dbg_error(DBG_SOCKET, "req close socket err");
+        exmsg_func_exec(sock_destory_req_in, &req);
         return -1;
     }
 
 
     if (req.wait) {
+        //0一直等待
+        //err = sock_wait_enter(req.wait, req.wait_tmo);
         err = sock_wait_enter(req.wait, req.wait_tmo);
         if (err < 0) {
-        dbg_error(DBG_SOCKET, "sock wait err");
-        return -1;
+            dbg_error(DBG_SOCKET, "sock wait err");
+            return -1;
         }
+        exmsg_func_exec(sock_destory_req_in, &req);
     } 
     return 0;
 }

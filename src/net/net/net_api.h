@@ -12,6 +12,8 @@
 
 #define socket(family, type, protocol)              x_socket(family, type, protocol)
 #define bind(s, addr, len)                          x_bind(s, addr, len)
+#define listen(s, backlog)                          x_listen(s, backlog)
+#define accept(s, addr, len)                        x_accept(s, addr, len)
 #define connect(s, addr, addr_len)                  x_connect(s, addr, addr_len)
 #define send(s, buf, len, flags)                    x_send(s, buf, len, flags)
 #define sendto(s, buf, len, flags, dest, dlen)      x_sendto(s, buf, len, flags, dest, dlen)

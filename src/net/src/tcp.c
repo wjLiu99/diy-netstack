@@ -63,7 +63,6 @@ void tcp_show_list (void) {
 
 #endif
 
-
 net_err_t tcp_init (void) {
     dbg_info(DBG_TCP, "tcp init");
     mblock_init(&tcp_mblock, tcp_tbl, sizeof(tcp_t), TCP_MAX_NR, NLOCKER_NONE);
@@ -373,6 +372,110 @@ static net_err_t tcp_setopt (struct _sock_t* s,  int level, int optname, const c
 
     return NET_ERR_OK;
 }
+
+net_err_t tcp_bind(struct _sock_t* s, const struct x_sockaddr* addr, x_socklen_t len) {
+    tcp_t *tcp = (tcp_t *)s;
+
+    if (tcp->state != TCP_STATE_CLOSED) {
+        dbg_error(DBG_TCP, "state err");
+        return NET_ERR_STATE;
+    }
+
+    if (s->local_port != NET_PORT_EMPTY) {
+        dbg_error(DBG_TCP, "already bind");
+        return NET_ERR_PARAM;
+    }
+
+    const struct x_sockaddr_in *addr_in = (const struct x_sockaddr_in *)addr;
+    if (addr_in->sin_port == NET_PORT_EMPTY) {
+        dbg_error(DBG_TCP, "port is empty");
+        return NET_ERR_PARAM;
+    }
+
+    //检查是否是真实存在的ip地址，允许0,0,0.0
+    ipaddr_t local_ip;
+    ipaddr_from_buf(&local_ip, (uint8_t *)&addr_in->sin_addr);
+    if (!ipaddr_is_any(&local_ip)) {
+        // 查找路由表，检查是否有该项
+        rentry_t* rt = rt_find(&local_ip);
+        if (rt == (rentry_t*)0) {
+            dbg_error(DBG_TCP, "ipaddr error, no netif has this ip");
+            return NET_ERR_ADDR;
+        }
+        if (!ipaddr_is_equal(&local_ip, &rt->netif->ipaddr)) {
+            dbg_error(DBG_TCP, "ipaddr error");
+            return NET_ERR_ADDR;
+        }
+    }
+    nlist_node_t * node;
+    nlist_for_each(node, &tcp_list) {
+        sock_t * curr = (sock_t *)nlist_entry(node, sock_t, node);
+
+        // 远端端口不非为空，既已经连接，不检查，半连接或者全连接队列或者已经在服务了
+        if ((s == curr) || (curr->remote_port != NET_PORT_EMPTY)) {
+            continue;
+        }
+        
+        // 本地地址完全匹配，错误,允许ip不同端口相同
+        if (ipaddr_is_equal(&curr->local_ip, &local_ip) && (curr->local_port == addr_in->sin_port)) {
+            dbg_error(DBG_TCP, "ipaddr and port already used");
+            return NET_ERR_ADDR;
+        }
+    }
+
+    // 记录下IP地址和端口号， IP地址可能为空
+    ipaddr_copy(&s->local_ip, &local_ip);
+    s->local_port = x_ntohs(addr_in->sin_port);;
+    return NET_ERR_OK;
+
+}
+//只是切换状态，并没有发送什么数据包
+ net_err_t tcp_listen (struct _sock_t *s, int backlog) {
+    tcp_t *tcp = (tcp_t *)s;
+    if (tcp->state != TCP_STATE_CLOSED) {
+        dbg_error(DBG_TCP, "tcp state err");
+        return NET_ERR_STATE;
+    }
+
+    tcp->state = TCP_STATE_LISTEN;
+    tcp->conn.backlog = backlog;
+    return NET_ERR_OK;
+ }
+ net_err_t tcp_accept (struct _sock_t *s, struct x_sockaddr *addr, x_socklen_t *len, struct _sock_t **client) {
+    nlist_node_t *node;
+    nlist_for_each(node, &tcp_list) {
+        sock_t *sock = nlist_entry(node, sock_t, node);
+        tcp_t *tcp = (tcp_t *)sock;
+
+        if (s == sock || tcp->parent != (tcp_t *)s) {
+            continue;
+        }
+
+        if (tcp->flags.inactive && (tcp->state == TCP_STATE_ESTABLISHED)) { 
+            struct x_sockaddr_in * addr_in = (struct x_sockaddr_in *)addr;
+            plat_memset(addr_in, 0, *len);
+            addr_in->sin_family = AF_INET;
+            //tcp中保存的是小端，要返回大端给上层使用
+            addr_in->sin_port = x_htons(tcp->base.remote_port);
+            ipaddr_to_buf(&tcp->base.remote_ip, (uint8_t *)&addr_in->sin_addr.s_addr);
+
+            tcp->flags.inactive = 0;
+            *client = sock;
+            return NET_ERR_OK;
+        }
+    }
+    return NET_ERR_WAIT;
+ }
+
+void tcp_destory (struct _sock_t *sock) {
+    tcp_t *tcp = (tcp_t *)sock;
+    //timewait状态后续再释放
+    if (tcp->state == TCP_STATE_TIME_WAIT) {
+        return;
+    }
+    tcp_free((tcp_t *)sock);
+
+}
 static tcp_t *tcp_alloc (int wait, int family, int protocol) {
         static const sock_ops_t tcp_ops = {
         .connect = tcp_connect,
@@ -380,6 +483,11 @@ static tcp_t *tcp_alloc (int wait, int family, int protocol) {
         .setopt = tcp_setopt,
         .send = tcp_send,
         .recv = tcp_recv,
+        .bind = tcp_bind,
+        .listen = tcp_listen,
+        .accept = tcp_accept,
+        .destroy = tcp_destory,
+
     };
     tcp_t *tcp = tcp_get_free(wait);
     if (!tcp) {
@@ -460,15 +568,39 @@ tcp_t * tcp_find (ipaddr_t *local_ip, uint16_t local_port, ipaddr_t *remote_ip, 
         if (!ipaddr_is_any(&s->local_ip) && !ipaddr_is_equal(&s->local_ip, local_ip)) {
             continue;
         }
+
+
+        //不满足listen套接字的条件，监听套接字远端ip和端口都是为0的
         if (
             (s->local_port == local_port) &&
             (ipaddr_is_equal(&s->remote_ip, remote_ip)) &&
             (s->remote_port == remote_port)
         ) {
-            tcp = (tcp_t *)s;
-            break;
+            if (ipaddr_is_any(&s->local_ip) || ipaddr_is_equal(local_ip, &s->local_ip)) {
+                tcp = (tcp_t *)s;
+                break;
+            }
+            
+        }
+
+        //加上监听套接字的判断条件
+        /*
+            可能存在 local_ip  192.168.133.1   1000 
+                    local_ip   192.168.133.5    1000
+                    local_ip    0.0.0.0         1000
+                    返回最匹配的，没有就返回0.0.0.0
+        */
+        tcp_t *cur = (tcp_t *)s;
+        if ((cur->state == TCP_STATE_LISTEN) && (s->local_port == local_port)) {
+            if (ipaddr_is_equal(&s->local_ip, local_ip)) {
+                return cur;
+            } else if (ipaddr_is_any(&s->local_ip)) {
+                tcp = (tcp_t *)s;
+            }
         }
     }
+
+
 
     return tcp;
 }
@@ -496,9 +628,11 @@ void tcp_read_option (tcp_t *tcp, tcp_hdr_t *hdr) {
                 if (mss < tcp->mss) {
                     tcp->mss = mss;
                 }
-                
+                opt_start += opt->length;
+            } else {
+                opt_start++;
             }
-            opt_start += opt->length;
+            
             break;
         }
         case TCP_OPT_NOP: {
@@ -562,4 +696,42 @@ void tcp_keepalive_restart (tcp_t *tcp) {
 
 void tcp_kill_all_timers (tcp_t *tcp) {
     net_timer_remove(&tcp->conn.keep_timer);
+}
+
+
+
+
+int tcp_backlog_count (tcp_t *tcp) {
+    int count = 0;
+    nlist_node_t *node;
+    nlist_for_each(node, &tcp_list) {
+        tcp_t *child = (tcp_t *)nlist_entry(node, sock_t, node);
+        if (child->parent == tcp && (child->flags.inactive)) {
+            count++;
+        }
+    }
+    return count;
+}
+
+tcp_t *tcp_create_child (tcp_t *tcp, tcp_seg_t *seg) {
+    tcp_t *child = (tcp_t *)tcp_alloc(0, tcp->base.family, tcp->base.protocol);
+    if (!child) {
+        dbg_error(DBG_TCP, "no child tcp");
+        return (tcp_t *)0;
+    }
+    ipaddr_copy(&child->base.local_ip, &seg->local_ip);
+    ipaddr_copy(&child->base.remote_ip, &seg->remote_ip);
+    child->base.local_port = seg->hdr->dport;
+    child->base.remote_port = seg->hdr->sport;
+    child->parent = tcp;
+    child->flags.irs_valid = 1;
+    child->flags.inactive = 1;
+    tcp_init_connect(child);
+    child->recv.iss = seg->seq;
+    child->recv.nxt = child->recv.iss + 1;
+    tcp_read_option(child, seg->hdr);
+    
+
+    tcp_insert(child);
+    return child;
 }

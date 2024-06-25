@@ -40,6 +40,8 @@ typedef struct _sock_ops_t{
 	net_err_t (*connect)(struct _sock_t* s, const struct x_sockaddr* addr, x_socklen_t len);
     net_err_t (*bind)(struct _sock_t* s, const struct x_sockaddr* addr, x_socklen_t len);
     void (*destroy)(struct _sock_t *s);
+    net_err_t (*listen) (struct _sock_t *s, int backlog);
+    net_err_t (*accept) (struct _sock_t *s, struct x_sockaddr *addr, x_socklen_t *len, struct _sock_t **client);
 }sock_ops_t;
 
 //sock标识一次具体的通信，保存双方的通信信息，ip，端口，协议，回调函数表
@@ -111,6 +113,17 @@ typedef struct _sock_opt_t {
     int len;
 }sock_opt_t;
 
+typedef struct _sock_listen_t {
+    int backlog;
+}sock_listen_t;
+
+typedef struct _sock_accept_t {
+    struct x_sockaddr *addr;
+    x_socklen_t *len;
+    int client; 
+}sock_accept_t;
+
+
 //通用参数结构
 typedef struct _sock_req_t {
     int sockfd;
@@ -120,6 +133,8 @@ typedef struct _sock_req_t {
         sock_opt_t opt;
         sock_conn_t conn;
         sock_bind_t bind;
+        sock_listen_t listen;
+        sock_accept_t accept;
     };
     sock_wait_t *wait;
     int wait_tmo;
@@ -136,6 +151,9 @@ net_err_t sock_recvfrom_req_in (struct _func_msg_t *msg);
 net_err_t sock_recv_req_in (struct _func_msg_t *msg);
 net_err_t sock_setsockopt_req_in (struct _func_msg_t *msg);
 net_err_t sock_close_req_in (struct _func_msg_t *msg);
+net_err_t sock_listen_req_in (struct _func_msg_t *msg);
+net_err_t sock_accept_req_in (struct _func_msg_t *msg);
+net_err_t sock_destory_req_in (struct _func_msg_t *msg);
 
 //sock初始化
 net_err_t sock_init (sock_t *sock, int family, int protocol, const sock_ops_t *ops);

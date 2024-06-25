@@ -394,7 +394,79 @@ net_err_t sock_setsockopt_req_in (struct _func_msg_t *msg) {
     return sock->ops->setopt(sock, opt->level, opt->optname, opt->optval, opt->len);
 
 }
+net_err_t sock_listen_req_in (struct _func_msg_t *msg) {
+    sock_req_t *req = (sock_req_t *)msg->param;
+    
+    x_socket_t *s = get_socket(req->sockfd);
+    if (!s) {
+        dbg_error(DBG_SOCKET, "param err");
+        return NET_ERR_PARAM;
+    }
+    sock_t *sock = s->sock;
+    sock_listen_t *listen = (sock_listen_t *)&req->listen;
+    if (!sock->ops->listen) {
+        dbg_error(DBG_SOCKET, "func not exist");
+        return NET_ERR_EXIST;
+    }
 
+    return sock->ops->listen(sock, listen->backlog);
+}
+net_err_t sock_accept_req_in (struct _func_msg_t *msg) {
+    sock_req_t *req = (sock_req_t *)msg->param;
+    
+    x_socket_t *s = get_socket(req->sockfd);
+    if (!s) {
+        dbg_error(DBG_SOCKET, "param err");
+        return NET_ERR_PARAM;
+    }
+    sock_t *sock = s->sock;
+    sock_accept_t *accept = (sock_accept_t *)&req->listen;
+    if (!sock->ops->accept) {
+        dbg_error(DBG_SOCKET, "func not exist");
+        return NET_ERR_EXIST;
+    }
+    sock_t *client = (sock_t *)0;
+    net_err_t err = sock->ops->accept(sock, accept->addr, accept->len, &client);
+    if (err < 0) {
+        dbg_error(DBG_SOCKET, "accept err");
+        return err;
+    } else if (err == NET_ERR_WAIT) {
+        if (sock->conn_wait) {
+            sock_wait_add(sock->conn_wait, sock->rcv_tmo, req);
+        }
+    } else {
+        x_socket_t *child_socket = socket_alloc();
+        if (child_socket == (x_socket_t *)0) {
+            dbg_error(DBG_SOCKET, "no socket");
+            return NET_ERR_NONE;
+        }
+        child_socket->sock = client;
+        accept->client = get_index(child_socket);
+    }
+
+    return NET_ERR_OK;
+
+}
+
+net_err_t sock_destory_req_in (struct _func_msg_t *msg) {
+    sock_req_t *req = (sock_req_t *)msg->param;
+    
+    x_socket_t *s = get_socket(req->sockfd);
+    if (!s) {
+        dbg_error(DBG_SOCKET, "param err");
+        return NET_ERR_PARAM;
+    }
+    sock_t *sock = s->sock;
+    if (!sock->ops->destroy) {
+        dbg_error(DBG_SOCKET, "func not exist");
+        return NET_ERR_EXIST;
+    }
+    
+    sock->ops->destroy(sock);
+    socket_free(s);
+    
+    return NET_ERR_OK;
+}
 net_err_t sock_close_req_in (struct _func_msg_t *msg) {
     sock_req_t *req = (sock_req_t *)msg->param;
     
@@ -404,7 +476,7 @@ net_err_t sock_close_req_in (struct _func_msg_t *msg) {
         return NET_ERR_PARAM;
     }
     sock_t *sock = s->sock;
-    sock_opt_t *opt = (sock_opt_t *)&req->opt;
+
     if (!sock->ops->close) {
         dbg_error(DBG_SOCKET, "func not exist");
         return NET_ERR_EXIST;
@@ -414,8 +486,10 @@ net_err_t sock_close_req_in (struct _func_msg_t *msg) {
     if (err == NET_ERR_WAIT) {
         if (sock->conn_wait) {
             //等对方的ack响应
-            //加入那个等待结构都行，最后调用abort通知所有的等待结构
-            sock_wait_add(sock->conn_wait, sock->rcv_tmo, req);
+            //加入那个等待结构都行，最后调用abort通知所有的等待结构,
+            //不能一直等待，不然协议栈可能会卡死，发送fin报文之后对方可能宕机或者出现一些状况不能响应，如果一直等待协议栈就卡死了
+            //sock_wait_add(sock->conn_wait, sock->rcv_tmo, req);
+            sock_wait_add(sock->conn_wait, NET_CLOSE_MAX_TMO, req);
         }
     }
     
@@ -462,3 +536,5 @@ net_err_t sock_recv (struct _sock_t * s, void* buf, size_t len, int flags, ssize
     x_socklen_t addr_len;
     return s->ops->recvfrom(s, buf, len, flags, &src, &addr_len, result_len);
 }
+
+
