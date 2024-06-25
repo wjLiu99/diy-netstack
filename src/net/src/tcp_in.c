@@ -100,6 +100,11 @@ net_err_t tcp_in (pktbuf_t *buf, ipaddr_t *src, ipaddr_t *dest) {
         tcp_show_list();
         return NET_ERR_NONE;
     }
+    //重启保活机制
+    if (tcp->flags.keep_enable) {
+        tcp_keepalive_restart(tcp);
+    }
+    
 
     net_err_t err = pktbuf_seek(buf, tcp_hdr_size(tcp_hdr));
     if (err < 0) {

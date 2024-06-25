@@ -75,7 +75,8 @@
         "*.tcc": "c",
         "socket": "c",
         "fstream": "c",
-        "raw.h": "c"
+        "raw.h": "c",
+        "nlist.h": "c"
     },
     
     "C_Cpp.default.configurationProvider": "ms-vscode.makefile-tools"

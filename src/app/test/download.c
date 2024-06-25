@@ -2,6 +2,7 @@
 #include <string.h>
 #include "net_plat.h"
 // #include <arpa/inet.h>
+
 #include "net_err.h"
 #include "net_api.h"
 
@@ -20,6 +21,14 @@ void download_test (const char * filename, int port) {
 		printf("create socket error\n");
 		return;
 	}
+    int keepalive = 1;
+    int keepidle = 3;           // 空间一段时间后
+    int keepinterval = 1;       // 时间多长时间
+    int keepcount = 10;         // 重发多少次keepalive包
+    setsockopt(sockfd, SOL_SOCKET, SO_KEEPALIVE, (void *)&keepalive , sizeof(keepalive ));
+    setsockopt(sockfd, SOL_TCP, TCP_KEEPIDLE, (void*)&keepidle , sizeof(keepidle ));
+    setsockopt(sockfd, SOL_TCP, TCP_KEEPINTVL, (void *)&keepinterval , sizeof(keepinterval ));
+    setsockopt(sockfd, SOL_TCP, TCP_KEEPCNT, (void *)&keepcount , sizeof(keepcount ));
 
     // 绑定本地地址
     struct sockaddr_in addr;

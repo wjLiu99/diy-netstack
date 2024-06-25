@@ -23,23 +23,32 @@ void nlist_insert_first (nlist_t *list, nlist_node_t *node){
 }
 
 nlist_node_t *nlist_remove (nlist_t *list, nlist_node_t *node){
+    //判断节点是否在链表里
+    int exist = 0;
     if(list->first == node){
         list->first = node->next;
+        exist = 1;
     }
 
     if(list->last == node){
         list->last = node->pre;
+        exist = 1;
     }
 
     if(node->pre){
         node->pre->next = node->next;
+        exist = 1;
     }
 
     if(node->next){
         node->next->pre = node->pre;
+        exist = 1;
     }
     node->pre = node->next = (nlist_node_t *)0;
-    list->count--;
+    if (exist) {
+        list->count--;
+    }
+    
     return node;
 }
 

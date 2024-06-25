@@ -271,3 +271,67 @@ int tcp_write_sendbuf (tcp_t *tcp, const uint8_t *data, int len) {
     tcp_buf_write_send(&tcp->send.buf, data, wr_len);
     return wr_len;
 }
+
+net_err_t tcp_send_keepalive (tcp_t *tcp) {
+    pktbuf_t *buf = pktbuf_alloc(sizeof(tcp_hdr_t));
+    if (!buf) {
+        dbg_error(DBG_TCP, "no pktbuf");
+        return NET_ERR_MEM;
+
+    }
+    
+    //填充包头
+    tcp_hdr_t *out = (tcp_hdr_t *)pktbuf_data(buf);
+    out->sport = tcp->base.local_port;
+    out->dport = tcp->base.remote_port;
+    out->seq = tcp->send.nxt - 1;
+    out->ack = tcp->recv.nxt;
+    out->flags = 0;
+    out->f_ack = 1;
+    out->win = tcp_recv_window(tcp);
+    out->urgptr = 0;
+    tcp_set_hdr_size(out, sizeof(tcp_hdr_t));
+    
+    //如果对方发来的包确认序号有效，reset报文的序号为对方数据包的确认序号,确认序号无效，则发送对方包的序号加数据长度的确认包
+   
+    net_err_t err =  send_out(out, buf, &tcp->base.remote_ip, &tcp->base.local_ip);
+    if (err < 0) {
+        dbg_error(DBG_TCP, "send reset err");
+        pktbuf_free(buf);
+        return err;
+    }
+
+    return NET_ERR_OK;
+}
+net_err_t tcp_send_reset_for_tcp (tcp_t *tcp) {
+    pktbuf_t *buf = pktbuf_alloc(sizeof(tcp_hdr_t));
+    if (!buf) {
+        dbg_error(DBG_TCP, "no pktbuf");
+        return NET_ERR_MEM;
+
+    }
+    
+    //填充包头
+    tcp_hdr_t *out = (tcp_hdr_t *)pktbuf_data(buf);
+    out->sport = tcp->base.local_port;
+    out->dport = tcp->base.remote_port;
+    out->seq = tcp->send.nxt;
+    out->ack = tcp->recv.nxt;
+    out->flags = 0;
+    out->f_rst = 1;
+    out->f_ack = 1;
+    out->win = tcp_recv_window(tcp);
+    out->urgptr = 0;
+    tcp_set_hdr_size(out, sizeof(tcp_hdr_t));
+    
+    //如果对方发来的包确认序号有效，reset报文的序号为对方数据包的确认序号,确认序号无效，则发送对方包的序号加数据长度的确认包
+   
+    net_err_t err =  send_out(out, buf, &tcp->base.remote_ip, &tcp->base.local_ip);
+    if (err < 0) {
+        dbg_error(DBG_TCP, "send reset err");
+        pktbuf_free(buf);
+        return err;
+    }
+
+    return NET_ERR_OK;
+}

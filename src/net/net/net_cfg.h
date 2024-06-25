@@ -77,4 +77,9 @@
 #define TCP_SBUF_SIZE           4096  //tcp发送缓存大小
 #define TCP_RBUF_SIZE           4096  //tcp接收 缓存大小
 
+
+#define TCP_KEEPALIVE_TIME      (20 * 60 * 60)
+#define TCP_KEEPALIVE_INTVL     10
+#define TCP_KEEPALIVE_PROBES    10
+
 #endif

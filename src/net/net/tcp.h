@@ -4,6 +4,7 @@
 #include "sock.h"
 #include "net_cfg.h"
 #include "tcp_buf.h"
+#include "ntimer.h"
 
 #define TCP_OPT_END     0
 #define TCP_OPT_NOP     1
@@ -104,6 +105,12 @@ typedef struct _tcp_t {
     //连接相关
     struct {
         sock_wait_t wait;
+        //保活相关参数
+        int keep_idle;
+        int keep_intvl;
+        int keep_cnt;
+        int keep_retry;
+        net_timer_t keep_timer;
     } conn;
 
     //发送相关
@@ -132,6 +139,7 @@ typedef struct _tcp_t {
         uint32_t fin_out : 1;   //fin是否发送
         uint32_t fin_in : 1;    //是否接收完毕, 解决数据丢失重传， 数据全部接收完毕且接收到fin报文才置位
         uint32_t irs_valid : 1; //是否收到对方syn
+        uint32_t keep_enable : 1;//是否开启保活机制
     } flags;
 
 } tcp_t;
@@ -148,6 +156,12 @@ int tcp_recv_window (tcp_t *tcp);
 
 //终止tcp连接
 net_err_t tcp_abort(tcp_t *tcp, net_err_t err);
+
+//保活相关函数
+void  tcp_keepalive_start (tcp_t *tcp, int run);
+void tcp_keepalive_restart (tcp_t *tcp);
+void tcp_kill_all_timers (tcp_t *tcp);
+
 
 #if DBG_DISPLAY_ENABLED(DBG_TCP)       
 void tcp_show_info (char * msg, tcp_t * tcp);

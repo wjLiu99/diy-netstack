@@ -252,7 +252,7 @@ int main (void) {
 	
 	netdev_init();
 	net_start();
-	ping_test();
+	// ping_test();
 	
 	// base_test();
 	download_test("hello.txt", 10000);

@@ -314,12 +314,70 @@ static net_err_t tcp_recv (struct _sock_t * s, void* buf, size_t len, int flags,
 
     return wait; 
 }
+static net_err_t tcp_setopt (struct _sock_t* s,  int level, int optname, const char * optval, int optlen) {
+    net_err_t err = sock_setopt(s, level, optname, optval, optlen);
+    if (err == NET_ERR_OK) {
+        return NET_ERR_OK;
+    } else if (err < 0 && (err != NET_ERR_UNKNOWN)) {
+        return err;
+    }
+    tcp_t *tcp = (tcp_t *)s;
+    if (level == SOL_SOCKET) {
+        if (optname == SO_KEEPALIVE) {
+            if (optlen != sizeof(int)) {
+                dbg_error(DBG_TCP, "param err");
+                return NET_ERR_PARAM;
+            }
+            tcp_keepalive_start(tcp, *(int *)optval);
+  
+            return NET_ERR_OK;
+        }
+        return NET_ERR_PARAM;
+    } else if (level == SOL_TCP) {
+        switch (optname)
+        {
+        case TCP_KEEPIDLE:{
+                if (optlen != sizeof(int)) {
+                dbg_error(DBG_TCP, "param err");
+                return NET_ERR_PARAM;
+                }   
+            tcp->conn.keep_idle = *(int *)optval;
+            tcp_keepalive_restart(tcp);
+            break;
 
+        }
+        case TCP_KEEPCNT: {
+            if (optlen != sizeof(int)) {
+                dbg_error(DBG_TCP, "param err");
+                return NET_ERR_PARAM;
+                }   
+            tcp->conn.keep_cnt = *(int *)optval;
+            tcp_keepalive_restart(tcp);
+            break;
+        }
+        case TCP_KEEPINTVL: {
+            if (optlen != sizeof(int)) {
+                dbg_error(DBG_TCP, "param err");
+                return NET_ERR_PARAM;
+                }   
+            tcp->conn.keep_intvl = *(int *)optval;
+            tcp_keepalive_restart(tcp);
+            break;
+        }
+        
+        default:
+            dbg_error(DBG_TCP, "unknown param");
+            return NET_ERR_PARAM;
+        }
+    }
+
+    return NET_ERR_OK;
+}
 static tcp_t *tcp_alloc (int wait, int family, int protocol) {
         static const sock_ops_t tcp_ops = {
         .connect = tcp_connect,
         .close = tcp_close,
-        .setopt = sock_setopt,
+        .setopt = tcp_setopt,
         .send = tcp_send,
         .recv = tcp_recv,
     };
@@ -330,6 +388,10 @@ static tcp_t *tcp_alloc (int wait, int family, int protocol) {
     }
     plat_memset(tcp, 0, sizeof(tcp_t));
     tcp->state = TCP_STATE_CLOSED;
+    tcp->flags.keep_enable = 0;
+    tcp->conn.keep_idle = TCP_KEEPALIVE_TIME;
+    tcp->conn.keep_intvl = TCP_KEEPINTVL;
+    tcp->conn.keep_cnt = TCP_KEEPALIVE_PROBES;
     //静态分配， 可以在前面使用动态分配函数分配一片空间
     tcp_buf_init(&tcp->send.buf, tcp->send.data, TCP_SBUF_SIZE);
     tcp_buf_init(&tcp->recv.buf, tcp->recv.data, TCP_RBUF_SIZE);
@@ -412,6 +474,8 @@ tcp_t * tcp_find (ipaddr_t *local_ip, uint16_t local_port, ipaddr_t *remote_ip, 
 }
 
 net_err_t tcp_abort(tcp_t *tcp, net_err_t err) {
+    //超时时间触发已经将定时器移除了，再移除会触发空指针异常
+    tcp_kill_all_timers(tcp);
     tcp_set_state(tcp, TCP_STATE_CLOSED);
     //通知所有等待结构
     sock_wakeup(&tcp->base, SOCK_WAIT_ALL, err);
@@ -455,4 +519,47 @@ void tcp_read_option (tcp_t *tcp, tcp_hdr_t *hdr) {
 
 int tcp_recv_window (tcp_t *tcp) {
     return tcp_buf_free_cnt(&tcp->recv.buf);
+}
+
+static void tcp_alive_tmo (struct _net_timer_t *timer, void *arg) {
+    tcp_t *tcp = (tcp_t *)arg;
+    if (++tcp->conn.keep_retry <= tcp->conn.keep_cnt) {
+        tcp_send_keepalive(tcp);
+        // net_timer_remove(&tcp->conn.keep_timer);
+        net_timer_add(&tcp->conn.keep_timer, "keepalive", tcp_alive_tmo, tcp, tcp->conn.keep_intvl * 1000, 0);
+        dbg_info(DBG_TCP, "tcp alive tmo, retry : %d", tcp->conn.keep_retry);
+    } else {
+        tcp_send_reset_for_tcp(tcp);
+        //不能返回tmo，不然recv没法正常退出
+        tcp_abort(tcp, NET_ERR_CLOSE);
+        dbg_error(DBG_TCP, "alive retry over");
+
+    }
+    
+}
+
+static void keepalive_start_timer (tcp_t *tcp) {
+    net_timer_add(&tcp->conn.keep_timer, "keepalive", tcp_alive_tmo, tcp, tcp->conn.keep_idle * 1000, 0);
+    
+}
+
+void  tcp_keepalive_start (tcp_t *tcp, int run) {
+    if (tcp->flags.keep_enable && !run) {
+        net_timer_remove(&tcp->conn.keep_timer);
+    } else if (run && !tcp->flags.keep_enable) {
+        keepalive_start_timer(tcp);
+    }
+    tcp->flags.keep_enable = run;
+}
+
+void tcp_keepalive_restart (tcp_t *tcp) {
+    if (tcp->flags.keep_enable) {
+        net_timer_remove(&tcp->conn.keep_timer);
+        keepalive_start_timer(tcp);
+        tcp->conn.keep_retry = 0;
+    }
+}
+
+void tcp_kill_all_timers (tcp_t *tcp) {
+    net_timer_remove(&tcp->conn.keep_timer);
 }
